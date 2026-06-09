@@ -23,10 +23,17 @@ pipeline {
 
         stage('Push to Nexus') {
             steps {
-                sh 'docker tag app-users:${IMAGE_TAG} ${NEXUS_URL}/app-users:${IMAGE_TAG}'
-                sh 'docker tag app-products:${IMAGE_TAG} ${NEXUS_URL}/app-products:${IMAGE_TAG}'
-                sh 'docker push ${NEXUS_URL}/app-users:${IMAGE_TAG}'
-                sh 'docker push ${NEXUS_URL}/app-products:${IMAGE_TAG}'
+                withCredentials([usernamePassword(
+                    credentialsId: 'nexus-credentials',
+                    usernameVariable: 'NEXUS_USER',
+                    passwordVariable: 'NEXUS_PASS'
+                )]) {
+                    sh 'echo $NEXUS_PASS | docker login ${NEXUS_URL} -u $NEXUS_USER --password-stdin'
+                    sh 'docker tag app-users:${IMAGE_TAG} ${NEXUS_URL}/app-users:${IMAGE_TAG}'
+                    sh 'docker tag app-products:${IMAGE_TAG} ${NEXUS_URL}/app-products:${IMAGE_TAG}'
+                    sh 'docker push ${NEXUS_URL}/app-users:${IMAGE_TAG}'
+                    sh 'docker push ${NEXUS_URL}/app-products:${IMAGE_TAG}'
+                }
             }
         }
 
