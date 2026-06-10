@@ -4,6 +4,7 @@ pipeline {
     environment {
         NEXUS_URL = 'localhost:8082'
         IMAGE_TAG = "v${BUILD_NUMBER}"
+        NAMESPACE = 'devops-pipeline'
     }
 
     stages {
@@ -39,7 +40,10 @@ pipeline {
 
         stage('Deploy to Minikube') {
             steps {
-                echo 'Déploiement Kubernetes - prochaine étape'
+                sh 'minikube image load app-users:${IMAGE_TAG}'
+                sh 'minikube image load app-products:${IMAGE_TAG}'
+                sh 'kubectl set image deployment/app-users app-users=app-users:${IMAGE_TAG} -n ${NAMESPACE}'
+                sh 'kubectl set image deployment/app-products app-products=app-products:${IMAGE_TAG} -n ${NAMESPACE}'
             }
         }
     }
