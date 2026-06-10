@@ -1,0 +1,10 @@
+# Environnements Python
+venv/
+__pycache__/
+*.pyc
+
+# Variables sensibles
+.env
+
+# Données Docker
+nexus/data/
