@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: app-products
-          image: app-products:v1
+          image: app-products:v5
           imagePullPolicy: Never
           ports:
             - containerPort: 5002

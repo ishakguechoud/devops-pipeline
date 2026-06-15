@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: app-users
-          image: app-users:v1
+          image: app-users:v5
           imagePullPolicy: Never
           ports:
             - containerPort: 5001
