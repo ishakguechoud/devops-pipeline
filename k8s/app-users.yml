@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: app-users
+  namespace: devops-pipeline
 spec:
   replicas: 1
   selector:
@@ -14,8 +15,7 @@ spec:
     spec:
       containers:
         - name: app-users
-          image: app-users:v5
-          imagePullPolicy: Never
+          image: 192.168.74.128:8082/app-users:v10
           ports:
             - containerPort: 5001
 ---
@@ -23,10 +23,11 @@ apiVersion: v1
 kind: Service
 metadata:
   name: app-users
+  namespace: devops-pipeline
 spec:
   selector:
     app: app-users
   ports:
     - port: 5001
       targetPort: 5001
-  type: NodePort
+  type: ClusterIP
