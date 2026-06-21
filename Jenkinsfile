@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        NEXUS_URL = 'localhost:8082'
+        NEXUS_URL = '192.168.74.128:8082'
         IMAGE_TAG = "v${BUILD_NUMBER}"
         NAMESPACE = 'devops-pipeline'
     }
@@ -11,7 +11,7 @@ pipeline {
 
         stage('Clone') {
             steps {
-                echo 'Code récupéré depuis GitHub'
+                echo 'Code recupere depuis GitHub'
             }
         }
 
@@ -38,22 +38,20 @@ pipeline {
             }
         }
 
-        stage('Deploy to Minikube') {
+        stage('Deploy to k3s') {
             steps {
-                sh 'minikube image load app-users:${IMAGE_TAG}'
-                sh 'minikube image load app-products:${IMAGE_TAG}'
-                sh 'kubectl set image deployment/app-users app-users=app-users:${IMAGE_TAG} -n ${NAMESPACE}'
-                sh 'kubectl set image deployment/app-products app-products=app-products:${IMAGE_TAG} -n ${NAMESPACE}'
+                sh 'kubectl set image deployment/app-users app-users=${NEXUS_URL}/app-users:${IMAGE_TAG} -n ${NAMESPACE} --kubeconfig=/root/.kube/config'
+                sh 'kubectl set image deployment/app-products app-products=${NEXUS_URL}/app-products:${IMAGE_TAG} -n ${NAMESPACE} --kubeconfig=/root/.kube/config'
             }
         }
     }
 
     post {
         success {
-            echo 'Pipeline terminé avec succès'
+            echo 'Pipeline termine avec succes - deploye sur k3s'
         }
         failure {
-            echo 'Pipeline échoué'
+            echo 'Pipeline echoue'
         }
     }
 }
