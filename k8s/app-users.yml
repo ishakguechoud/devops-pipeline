@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: app-users
-          image: 192.168.74.128:8082/app-users:v10
+          image: 192.168.74.128:8082/app-users:v12
           ports:
             - containerPort: 5001
 ---
@@ -27,7 +27,8 @@ metadata:
 spec:
   selector:
     app: app-users
+  type: NodePort
   ports:
     - port: 5001
       targetPort: 5001
-  type: ClusterIP
+      nodePort: 30001
