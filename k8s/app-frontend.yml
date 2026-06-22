@@ -28,8 +28,8 @@ spec:
             - name: KEYCLOAK_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: frontend-secret
-                  key: keycloak-client-secret
+                  name: keycloak-secret
+                  key: client-secret
 
 ---
 apiVersion: v1
