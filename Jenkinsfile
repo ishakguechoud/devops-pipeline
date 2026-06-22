@@ -38,14 +38,29 @@ pipeline {
             }
         }
 
-        stage('Deploy to k3s') {
+        stage('Update Manifests') {
             steps {
-                sh 'kubectl set image deployment/app-users app-users=${NEXUS_URL}/app-users:${IMAGE_TAG} -n ${NAMESPACE} --kubeconfig=/root/.kube/config'
-                sh 'kubectl set image deployment/app-products app-products=${NEXUS_URL}/app-products:${IMAGE_TAG} -n ${NAMESPACE} --kubeconfig=/root/.kube/config'
-            }
-        }
-    }
+                sh """
+                    sed -i "s|image: .*app-users:.*|image: ${NEXUS_URL}/app-users:${IMAGE_TAG}|g" k8s/app-users.yml
+                    sed -i "s|image: .*app-products:.*|image: ${NEXUS_URL}/app-products:${IMAGE_TAG}|g" k8s/app-products.yml
+                   """
+                 }  
+         }
 
+stage('Deploy to k3s') {
+    steps {
+        sh '''
+        kubectl apply -f k8s/app-users.yml \
+          -n ${NAMESPACE} \
+          --kubeconfig=/root/.kube/config
+
+        kubectl apply -f k8s/app-products.yml \
+          -n ${NAMESPACE} \
+          --kubeconfig=/root/.kube/config
+
+        '''
+    }
+}
     post {
         success {
             echo 'Pipeline termine avec succes - deploye sur k3s'
