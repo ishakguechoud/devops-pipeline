@@ -19,6 +19,7 @@ pipeline {
             steps {
                 sh "docker build -t app-users:${IMAGE_TAG} ./app-users"
                 sh "docker build -t app-products:${IMAGE_TAG} ./app-products"
+                sh "docker build -t app-frontend:${IMAGE_TAG} ./app-frontend"
             }
         }
 
@@ -36,9 +37,12 @@ pipeline {
 
                     docker tag app-users:${IMAGE_TAG} ${NEXUS_URL}/app-users:${IMAGE_TAG}
                     docker tag app-products:${IMAGE_TAG} ${NEXUS_URL}/app-products:${IMAGE_TAG}
+                    docker tag app-frontend:${IMAGE_TAG} ${NEXUS_URL}/app-frontend:${IMAGE_TAG}
 
                     docker push ${NEXUS_URL}/app-users:${IMAGE_TAG}
                     docker push ${NEXUS_URL}/app-products:${IMAGE_TAG}
+                    docker push ${NEXUS_URL}/app-frontend:${IMAGE_TAG}
+                    
                     """
                 }
             }
@@ -49,6 +53,7 @@ pipeline {
                 sh """
                 sed -i "s|image: .*app-users:.*|image: ${NEXUS_URL}/app-users:${IMAGE_TAG}|g" k8s/app-users.yml
                 sed -i "s|image: .*app-products:.*|image: ${NEXUS_URL}/app-products:${IMAGE_TAG}|g" k8s/app-products.yml
+                sed -i "s|image: .*app-frontend:.*|image: ${NEXUS_URL}/app-frontend:${IMAGE_TAG}|g" k8s/app-frontend.yml
                 """
             }
         }
@@ -58,6 +63,7 @@ pipeline {
                 sh """
                 kubectl apply -f k8s/app-users.yml -n ${NAMESPACE} --kubeconfig=/root/.kube/config
                 kubectl apply -f k8s/app-products.yml -n ${NAMESPACE} --kubeconfig=/root/.kube/config
+                kubectl apply -f k8s/app-frontend.yml -n ${NAMESPACE} --kubeconfig=/root/.kube/config
                 """
             }
         }
