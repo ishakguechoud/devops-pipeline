@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, url_for, session, render_template_string
+from flask import Flask, request, redirect, url_for, session
 import requests
 import os
 
@@ -6,24 +6,20 @@ app = Flask(__name__)
 app.secret_key = 'une_cle_secrete_super_secure'
 
 # Configuration Keycloak
-KEYCLOAK_BASE_URL = 'http://172.28.77.160:8086/'
+KEYCLOAK_BASE_URL = 'http://172.28.77.160:8086'  # pas de slash à la fin
 KEYCLOAK_REALM = 'zak-local'
 KEYCLOAK_CLIENT_ID = 'app-frontend'
-
-
-# Secret récupéré depuis Kubernetes Secret
 KEYCLOAK_CLIENT_SECRET = os.getenv("KEYCLOAK_CLIENT_SECRET")
 
-# URL de Keycloak pour demander un Jeton (Token Endpoint)
+# URL Token Endpoint — maintenant sans double slash
 KEYCLOAK_TOKEN_URL = f"{KEYCLOAK_BASE_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
 
-# URL de ton microservice existant pour les produits
-PRODUCTS_SERVICE_URL = "http://192.168.74.128:5002"
+# URL app-products via NodePort exposé sur la VM
+PRODUCTS_SERVICE_URL = "http://192.168.74.128:30002"  # NodePort 30002, pas 5002
 
 @app.route('/')
 def home():
     if 'username' in session:
-        # L'utilisateur est connecté ! On récupère les produits
         try:
             response = requests.get(f"{PRODUCTS_SERVICE_URL}/products")
             products_data = response.json().get('products', [])
@@ -37,7 +33,7 @@ def home():
             <br>
             <a href='/logout'>Se déconnecter</a>
         """
-    
+
     return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -46,8 +42,7 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        
-        # On prépare les données à envoyer en arrière-plan à Keycloak
+
         payload = {
             'grant_type': 'password',
             'client_id': KEYCLOAK_CLIENT_ID,
@@ -56,23 +51,19 @@ def login():
             'password': password,
             'scope': 'openid'
         }
-        
+
         try:
-            # Requete POST vers Keycloak
             response = requests.post(KEYCLOAK_TOKEN_URL, data=payload)
-            
             if response.status_code == 200:
-                # Si Keycloak répond 200, le mot de passe est BON !
                 token_data = response.json()
                 session['username'] = username
-                session['access_token'] = token_data.get('access_token') # Ton badge d'accès
+                session['access_token'] = token_data.get('access_token')
                 return redirect(url_for('home'))
             else:
                 error = "Identifiants incorrects (refusés par Keycloak)."
         except requests.exceptions.ConnectionError:
             error = "Impossible de contacter le serveur d'authentification Keycloak."
 
-    # Ton propre formulaire HTML personnalisé
     return f'''
         <div style="max-width: 300px; margin: 50px auto; padding: 20px; border: 1px solid #ccc; border-radius: 5px;">
             <h2>Connexion Assurance</h2>
