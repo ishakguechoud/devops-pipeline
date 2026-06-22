@@ -1,5 +1,6 @@
 from flask import Flask, request, redirect, url_for, session, render_template_string
 import requests
+import os
 
 app = Flask(__name__)
 app.secret_key = 'une_cle_secrete_super_secure'
@@ -8,7 +9,10 @@ app.secret_key = 'une_cle_secrete_super_secure'
 KEYCLOAK_BASE_URL = 'http://172.28.77.160:8086/'
 KEYCLOAK_REALM = 'zak-local'
 KEYCLOAK_CLIENT_ID = 'app-frontend'
-KEYCLOAK_CLIENT_SECRET = '5jrP3rYCpuv3UWJWEjLQ11RvP6Din5y3'  # <--- METS TON CODE SECRET ICI !
+
+
+# Secret récupéré depuis Kubernetes Secret
+KEYCLOAK_CLIENT_SECRET = os.getenv("KEYCLOAK_CLIENT_SECRET")
 
 # URL de Keycloak pour demander un Jeton (Token Endpoint)
 KEYCLOAK_TOKEN_URL = f"{KEYCLOAK_BASE_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
