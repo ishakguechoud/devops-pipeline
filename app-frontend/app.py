@@ -5,7 +5,7 @@ app = Flask(__name__)
 app.secret_key = 'une_cle_secrete_super_secure'
 
 # Configuration Keycloak
-KEYCLOAK_BASE_URL = 'http://localhost:8086'
+KEYCLOAK_BASE_URL = 'http://172.28.77.160:8086/'
 KEYCLOAK_REALM = 'zak-local'
 KEYCLOAK_CLIENT_ID = 'app-frontend'
 KEYCLOAK_CLIENT_SECRET = '5jrP3rYCpuv3UWJWEjLQ11RvP6Din5y3'  # <--- METS TON CODE SECRET ICI !
@@ -14,7 +14,7 @@ KEYCLOAK_CLIENT_SECRET = '5jrP3rYCpuv3UWJWEjLQ11RvP6Din5y3'  # <--- METS TON COD
 KEYCLOAK_TOKEN_URL = f"{KEYCLOAK_BASE_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
 
 # URL de ton microservice existant pour les produits
-PRODUCTS_SERVICE_URL = "http://localhost:5002"
+PRODUCTS_SERVICE_URL = "http://192.168.74.128:5002"
 
 @app.route('/')
 def home():
