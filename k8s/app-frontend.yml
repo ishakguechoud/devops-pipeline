@@ -20,20 +20,31 @@ spec:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "frontend-role"
         vault.hashicorp.com/agent-inject-secret-keycloak: "secret/frontend"
+        # Template CORRIGÉ - sans les tirets
         vault.hashicorp.com/agent-inject-template-keycloak: |
-          {{- with secret "secret/frontend" -}}
+          {{ with secret "secret/frontend" }}
           keycloak-client-secret: {{ .Data.keycloak-client-secret }}
-          {{- end }}
+          {{ end }}
 
     spec:
       serviceAccountName: frontend-sa
       
       containers:
         - name: app-frontend
-          image: 192.168.74.128:8082/app-frontend:v21
+          image: 192.168.74.128:8082/app-frontend:v23
           
           ports:
             - containerPort: 5000
+          
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              if [ -f /vault/secrets/keycloak ]; then
+                echo "Vault secret found, exporting..."
+                export KEYCLOAK_CLIENT_SECRET=$(grep keycloak-client-secret /vault/secrets/keycloak | cut -d':' -f2 | tr -d ' ')
+                echo "Secret exported"
+              fi
+              exec python app.py
 
 ---
 apiVersion: v1
