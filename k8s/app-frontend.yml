@@ -16,7 +16,14 @@ spec:
       labels:
         app: app-frontend
 
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "frontend-role"
+        vault.hashicorp.com/agent-inject-secret-keycloak: "secret/frontend"
+
     spec:
+      serviceAccountName: frontend-sa
+      
       containers:
         - name: app-frontend
           image: 192.168.74.128:8082/app-frontend:v1
