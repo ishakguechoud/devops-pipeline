@@ -31,12 +31,6 @@ spec:
           ports:
             - containerPort: 5000
 
-          env:
-            - name: KEYCLOAK_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: keycloak-secret
-                  key: client-secret
 
 ---
 apiVersion: v1
