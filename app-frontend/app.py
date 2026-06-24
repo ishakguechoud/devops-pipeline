@@ -122,7 +122,7 @@ def login():
 
     return f'''
         <div style="max-width: 300px; margin: 50px auto; padding: 20px; border: 1px solid #ccc; border-radius: 5px;">
-            <h2>Connexion Assurance</h2>
+            <h2>Connexion Mon Application</h2>
             {f'<p style="color: red;">{error}</p>' if error else ''}
             <form method="post">
                 <label>Utilisateur :</label><br>
