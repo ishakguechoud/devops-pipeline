@@ -1,0 +1,15 @@
+image:
+  registry: "192.168.74.128:8082"
+  repository: "app-users"
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 5001
+
+# Variables par défaut pour la DB (Valables pour la Préprod)
+database:
+  host: "192.168.74.128" # IP de ta VM PostgreSQL globale
+  port: 5432
+  name: "workflow_preprod"
+  user: "postgres"

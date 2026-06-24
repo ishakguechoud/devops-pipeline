@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-frontend
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: app-frontend
+  template:
+    metadata:
+      labels:
+        app: app-frontend
+      annotations:
+        vault.hashicorp.org/agent-inject: "true"
+        vault.hashicorp.org/role: {{ .Values.vault.role | quote }}
+        vault.hashicorp.org/agent-inject-secret-keycloak: {{ .Values.vault.secretPath | quote }}
+        # L'échappement ci-dessous permet à Helm de ne pas toucher au template propre à Vault
+        vault.hashicorp.org/agent-inject-template-keycloak: |
+          {{ `{{- with secret` }} "{{ .Values.vault.secretPath }}" {{ `}}{{- .Data.data.keycloak_client_secret }}{{- end }}` }}
+    spec:
+      serviceAccountName: frontend-sa
+      containers:
+      - name: app-frontend
+        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        ports:
+        - containerPort: 5000
