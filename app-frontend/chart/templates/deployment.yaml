@@ -13,12 +13,7 @@ spec:
       labels:
         app: app-frontend
       annotations:
-        vault.hashicorp.org/agent-inject: "true"
-        vault.hashicorp.org/role: {{ .Values.vault.role | quote }}
-        vault.hashicorp.org/agent-inject-secret-keycloak: {{ .Values.vault.secretPath | quote }}
-        # L'échappement ci-dessous permet à Helm de ne pas toucher au template propre à Vault
-        vault.hashicorp.org/agent-inject-template-keycloak: |
-          {{ `{{- with secret` }} "{{ .Values.vault.secretPath }}" {{ `}}{{- .Data.data.keycloak_client_secret }}{{- end }}` }}
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
     spec:
       serviceAccountName: frontend-sa
       containers:
