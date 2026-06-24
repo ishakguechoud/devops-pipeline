@@ -9,5 +9,5 @@ podAnnotations:
   vault.hashicorp.com/agent-inject-secret-keycloak: "secret/frontend"
   vault.hashicorp.com/agent-inject-template-keycloak: |
     {{ with secret "secret/data/frontend" -}}
-    keycloak-client-secret: {{ .Data.data.keycloak_client_secret }}
+    keycloak-client-secret: {{ index .Data.data "keycloak-client-secret" }}
     {{- end }}
