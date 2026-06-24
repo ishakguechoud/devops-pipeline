@@ -55,7 +55,7 @@ pipeline {
                     def k8sNamespace = "preprod-platform"
 
                     // Si on build depuis la branche principale (main), on déploie en PROD
-                    if (env.BRANCH_NAME == 'main') {
+                    if (env.GIT_BRANCH && (env.GIT_BRANCH.contains('main') || env.GIT_BRANCH.contains('master'))) {
                         envName = "prod"
                         k8sNamespace = "prod-platform"
                     }
