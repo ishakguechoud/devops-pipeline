@@ -62,20 +62,70 @@ KEYCLOAK_TOKEN_URL = f"{KEYCLOAK_BASE_URL}/realms/{KEYCLOAK_REALM}/protocol/open
 # URL app-products via NodePort exposé sur la VM
 PRODUCTS_SERVICE_URL = "http://192.168.74.128:30002"
 
+USERS_SERVICE_URL = "http://192.168.74.128:30001"
+
+
 @app.route('/')
 def home():
+
     if 'username' in session:
+
         try:
-            response = requests.get(f"{PRODUCTS_SERVICE_URL}/products")
-            products_data = response.json().get('products', [])
-        except requests.exceptions.ConnectionError:
+            products_response = requests.get(
+                f"{PRODUCTS_SERVICE_URL}/products"
+            )
+
+            products_data = products_response.json().get(
+                'products',
+                []
+            )
+
+        except Exception:
             products_data = []
+
+        try:
+            users_response = requests.get(
+                f"{USERS_SERVICE_URL}/users"
+            )
+
+            users_data = users_response.json().get(
+                'users',
+                []
+            )
+
+        except Exception:
+            users_data = []
+
+        users_html = ""
+
+        for user in users_data:
+            users_html += f"""
+            <li>
+                {user['username']} - {user['email']}
+            </li>
+            """
 
         return f"""
             <h1>Bienvenue sur ton interface, {session['username']} !</h1>
-            <p><strong>Statut :</strong> Connecté via Keycloak (Direct Grant)</p>
-            <p><strong>Produits disponibles :</strong> {products_data}</p>
+
+            <p>
+                <strong>Statut :</strong>
+                Connecté via Keycloak (Direct Grant)
+            </p>
+
+            <p>
+                <strong>Produits disponibles :</strong>
+                {products_data}
+            </p>
+
+            <h2>Utilisateurs PostgreSQL</h2>
+
+            <ul>
+                {users_html}
+            </ul>
+
             <br>
+
             <a href='/logout'>Se déconnecter</a>
         """
 
