@@ -4,22 +4,23 @@ pipeline {
     environment {
         NEXUS_URL = '192.168.74.128:8082'
         IMAGE_TAG = "v${BUILD_NUMBER}"
-        NAMESPACE = 'devops-pipeline'
+        // On supprime la variable NAMESPACE fixe car elle va devenir dynamique !
     }
 
     stages {
-
         stage('Clone') {
             steps {
                 echo 'Code recupere depuis GitHub'
+                checkout scm // Ligne standard pour s'assurer que Jenkins récupère bien le code
             }
         }
 
         stage('Build Images') {
             steps {
-                sh "docker build -t app-users:${IMAGE_TAG} ./app-users"
-                sh "docker build -t app-products:${IMAGE_TAG} ./app-products"
-                sh "docker build -t app-frontend:${IMAGE_TAG} ./app-frontend"
+                // On build directement avec l'URL Nexus pour s'éviter l'étape de "docker tag" après
+                sh "docker build -t ${NEXUS_URL}/app-users:${IMAGE_TAG} ./app-users"
+                sh "docker build -t ${NEXUS_URL}/app-products:${IMAGE_TAG} ./app-products"
+                sh "docker build -t ${NEXUS_URL}/app-frontend:${IMAGE_TAG} ./app-frontend"
             }
         }
 
@@ -35,43 +36,62 @@ pipeline {
                     sh """
                     echo \$NEXUS_PASS | docker login ${NEXUS_URL} -u \$NEXUS_USER --password-stdin
 
-                    docker tag app-users:${IMAGE_TAG} ${NEXUS_URL}/app-users:${IMAGE_TAG}
-                    docker tag app-products:${IMAGE_TAG} ${NEXUS_URL}/app-products:${IMAGE_TAG}
-                    docker tag app-frontend:${IMAGE_TAG} ${NEXUS_URL}/app-frontend:${IMAGE_TAG}
-
                     docker push ${NEXUS_URL}/app-users:${IMAGE_TAG}
                     docker push ${NEXUS_URL}/app-products:${IMAGE_TAG}
                     docker push ${NEXUS_URL}/app-frontend:${IMAGE_TAG}
-                    
                     """
                 }
             }
         }
 
-        stage('Update Manifests') {
-            steps {
-                sh """
-                sed -i "s|image: .*app-users:.*|image: ${NEXUS_URL}/app-users:${IMAGE_TAG}|g" k8s/app-users.yml
-                sed -i "s|image: .*app-products:.*|image: ${NEXUS_URL}/app-products:${IMAGE_TAG}|g" k8s/app-products.yml
-                sed -i "s|image: .*app-frontend:.*|image: ${NEXUS_URL}/app-frontend:${IMAGE_TAG}|g" k8s/app-frontend.yml
-                """
-            }
-        }
+        // L'ancien stage "Update Manifests" avec les `sed` disparaît complètement !
+        // Helm gère la mise à jour des tags dynamiquement.
 
-        stage('Deploy to k3s') {
+        stage('Deploy via Helm') {
             steps {
-                sh """
-                kubectl apply -f k8s/app-users.yml -n ${NAMESPACE} --kubeconfig=/root/.kube/config
-                kubectl apply -f k8s/app-products.yml -n ${NAMESPACE} --kubeconfig=/root/.kube/config
-                kubectl apply -f k8s/app-frontend.yml -n ${NAMESPACE} --kubeconfig=/root/.kube/config
-                """
+                script {
+                    // --- DÉTERMINATION DE L'ENVIRONNEMENT ---
+                    def envName = "preprod"
+                    def k8sNamespace = "preprod-platform"
+
+                    // Si on build depuis la branche principale (main), on déploie en PROD
+                    if (env.BRANCH_NAME == 'main') {
+                        envName = "prod"
+                        k8sNamespace = "prod-platform"
+                    }
+
+                    echo "🚀 Déploiement via Helm en cours... Env: ${envName}, Namespace: ${k8sNamespace}"
+
+                    // --- COMMANDES DE DÉPLOIEMENT HELM ---
+                    // --create-namespace : gère la création automatique du namespace si besoin
+                    // --kubeconfig : conserve ton accès sécurisé à K3s
+                    sh """
+                    helm upgrade --install app-products ./app-products/chart \
+                      --namespace ${k8sNamespace} --create-namespace \
+                      --kubeconfig=/root/.kube/config \
+                      -f ./app-products/chart/values-${envName}.yaml \
+                      --set image.tag=${IMAGE_TAG}
+
+                    helm upgrade --install app-users ./app-users/chart \
+                      --namespace ${k8sNamespace} \
+                      --kubeconfig=/root/.kube/config \
+                      -f ./app-users/chart/values-${envName}.yaml \
+                      --set image.tag=${IMAGE_TAG}
+
+                    helm upgrade --install app-frontend ./app-frontend/chart \
+                      --namespace ${k8sNamespace} --create-namespace \
+                      --kubeconfig=/root/.kube/config \
+                      -f ./app-frontend/chart/values-${envName}.yaml \
+                      --set image.tag=${IMAGE_TAG}
+                    """
+                }
             }
         }
     }
 
     post {
         success {
-            echo 'Pipeline termine avec succes - deploye sur k3s'
+            echo 'Pipeline termine avec succes - deploye via Helm sur k3s'
         }
 
         failure {
