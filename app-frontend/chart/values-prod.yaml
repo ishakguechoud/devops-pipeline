@@ -8,6 +8,6 @@ podAnnotations:
   vault.hashicorp.com/role: "frontend-role"
   vault.hashicorp.com/agent-inject-secret-keycloak: "secret/frontend"
   vault.hashicorp.com/agent-inject-template-keycloak: |
-    {{ with secret "secret/frontend" -}}
-    {{ .Data.data.keycloak_client_secret }}
+    {{ with secret "secret/data/frontend" -}}
+    keycloak-client-secret: {{ .Data.data.keycloak_client_secret }}
     {{- end }}
