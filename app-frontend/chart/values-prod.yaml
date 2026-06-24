@@ -3,7 +3,6 @@ replicaCount: 2
 service:
   nodePort: 31000
 
-# Tu dois rajouter cette section pour l'injection de Vault en Prod :
 podAnnotations:
   vault.hashicorp.com/agent-inject: "true"
   vault.hashicorp.com/role: "frontend-role"
