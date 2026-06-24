@@ -6,7 +6,7 @@ image:
 service:
   type: NodePort
   port: 5000
-  nodePort: 30000
+  nodePort: 30005
 
 vault:
   role: "frontend-role"
