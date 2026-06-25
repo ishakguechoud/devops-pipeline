@@ -1,6 +1,6 @@
 apiVersion: v2
 name: app-products
-description: Chart Helm pour le microservice products
+description: Chart Helm pour le microservice products (Flask, données statiques)
 type: application
 version: 1.0.0
 appVersion: "1.0.0"

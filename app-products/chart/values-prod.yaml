@@ -1,1 +1,13 @@
-replicaCount: 3
+replicaCount: 2
+
+labels:
+  environment: prod
+
+service:
+  type: NodePort
+  port: 5002
+  nodePort: 30002
+
+env: {}
+
+podAnnotations: {}

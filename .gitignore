@@ -8,3 +8,5 @@ __pycache__/
 
 # Données Docker
 nexus/data/
+values-vault.yaml
+*.backup

@@ -1,1 +1,12 @@
 replicaCount: 1
+
+labels:
+  environment: preprod
+
+service:
+  type: ClusterIP
+  port: 5002
+
+env: {}
+
+podAnnotations: {}

@@ -1,29 +1,47 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: app-users
+  name: {{ include "svc.fullname" . }}
   namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "svc.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount | default 1 }}
   selector:
     matchLabels:
-      app: app-users
+      app: {{ include "svc.fullname" . }}
   template:
     metadata:
       labels:
-        app: app-users
+        {{- include "svc.labels" . | nindent 8 }}
+      {{- if .Values.podAnnotations }}
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+      {{- end }}
     spec:
+      serviceAccountName: {{ .Values.serviceAccount.name | default "default" }}
       containers:
-      - name: app-users
-        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-        ports:
-        - containerPort: 5001
-        env:
-        - name: DB_HOST
-          value: {{ .Values.database.host | quote }}
-        - name: DB_PORT
-          value: {{ .Values.database.port | quote }}
-        - name: DB_NAME
-          value: {{ .Values.database.name | quote }}
-        - name: DB_USER
-          value: {{ .Values.database.user | quote }}
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: {{ .Values.containerPort | default 5001 }}
+          {{- if .Values.env }}
+          env:
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.containerPort | default 5001 }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.containerPort | default 5001 }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
