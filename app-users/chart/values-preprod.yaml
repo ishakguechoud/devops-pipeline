@@ -1,1 +1,18 @@
 replicaCount: 1
+
+labels:
+  environment: preprod
+
+service:
+  type: ClusterIP
+  port: 5001
+
+# En preprod, les credentials DB sont passés via variables d'environnement
+# C'est acceptable pour un environnement de test non exposé
+env:
+  DB_HOST: "192.168.74.129"
+  DB_NAME: "workflow"
+  DB_USER: "workflow_app"
+  DB_PASSWORD: "changeme-preprod"
+
+podAnnotations: {}
