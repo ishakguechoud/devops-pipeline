@@ -4,8 +4,9 @@ labels:
   environment: preprod
 
 service:
-  type: ClusterIP
+  type: NodePort
   port: 5002
+  nodePort: 30012
 
 env: {}
 
