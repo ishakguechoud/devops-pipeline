@@ -1,7 +1,17 @@
 replicaCount: 2
 
+labels:
+  environment: prod
+
 service:
   nodePort: 31000
+
+env:
+  KEYCLOAK_BASE_URL: "http://172.28.77.160:8086"
+  KEYCLOAK_REALM: "zak-local"
+
+serviceAccount:
+  name: "frontend-sa"
 
 podAnnotations:
   vault.hashicorp.com/agent-inject: "true"

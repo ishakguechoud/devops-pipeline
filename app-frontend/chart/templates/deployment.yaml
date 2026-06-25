@@ -1,23 +1,37 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: app-frontend
+  name: {{ include "svc.fullname" . }}
   namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "svc.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount | default 1 }}
   selector:
     matchLabels:
-      app: app-frontend
+      app: {{ include "svc.fullname" . }}
   template:
     metadata:
       labels:
-        app: app-frontend
+        {{- include "svc.labels" . | nindent 8 }}
+      # 🔐 Injection dynamique des annotations Vault si elles sont définies
+      {{- if .Values.podAnnotations }}
       annotations:
         {{- toYaml .Values.podAnnotations | nindent 8 }}
+      {{- end }}
     spec:
-      serviceAccountName: frontend-sa
+      serviceAccountName: {{ .Values.serviceAccount.name | default "default" }}
       containers:
-      - name: app-frontend
-        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-        ports:
-        - containerPort: 5000
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: {{ .Values.containerPort | default 5000 }}         
+         # 🌍 Injection dynamique des variables d'environnement de l'application
+          {{- if .Values.env }}
+          env:
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          {{- end }}

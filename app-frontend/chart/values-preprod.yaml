@@ -1,1 +1,15 @@
 replicaCount: 1
+
+labels:
+  environment: preprod
+
+service:
+  type: ClusterIP
+  port: 80
+
+env:
+  KEYCLOAK_BASE_URL: "http://172.28.77.160:8086" # Change l'IP ou le port si ta préprod utilise un autre Keycloak
+  KEYCLOAK_REALM: "zak-local"                     # Change le realm si tu as un realm "zak-preprod"
+
+# Pas besoin d'annotations Vault ici si tu passes le secret par variable d'environnement en préprod
+podAnnotations: {}
