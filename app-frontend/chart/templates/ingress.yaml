@@ -5,8 +5,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
   annotations:
     kubernetes.io/ingress.class: "nginx"
-    # 🔧 Indique à Nginx de surcharger le Host envoyé au conteneur Flask
-    nginx.ingress.kubernetes.io/upstream-vhost: "127.0.0.1"
+    # 🎯 FORCE Nginx à envoyer le trafic au ClusterIP (10.43.23.146) plutôt qu'à l'IP du Pod (10.42.0.56)
+    nginx.ingress.kubernetes.io/service-upstream: "true"
 spec:
   ingressClassName: nginx
   rules:
