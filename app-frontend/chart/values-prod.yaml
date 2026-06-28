@@ -25,3 +25,6 @@ podAnnotations:
     {{ with secret "secret/data/frontend" -}}
     keycloak-client-secret: {{ index .Data.data "keycloak-client-secret" }}
     {{- end }}
+
+ingress:
+  host: prod.workflow-devops.local
