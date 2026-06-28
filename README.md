@@ -1,11 +1,12 @@
 # DevOps Pipeline — Plateforme Microservices sur Kubernetes
 
-> Stack complète : CI/CD Jenkins · Docker · Kubernetes (k3s) · Keycloak · HashiCorp Vault · Nexus · PostgreSQL
+> Stack complète : CI/CD Jenkins · Docker · Kubernetes (k3s) · Helm · Keycloak · HashiCorp Vault · Nexus · PostgreSQL
 
 ![GitHub](https://img.shields.io/badge/GitHub-devops--pipeline-181717?logo=github)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-k3s-326CE5?logo=kubernetes)
 ![Jenkins](https://img.shields.io/badge/CI%2FCD-Jenkins-D24939?logo=jenkins)
 ![Docker](https://img.shields.io/badge/Container-Docker-2496ED?logo=docker)
+![Helm](https://img.shields.io/badge/Package-Helm-0F1689?logo=helm)
 ![Vault](https://img.shields.io/badge/Secrets-HashiCorp%20Vault-000000?logo=vault)
 ![Keycloak](https://img.shields.io/badge/Auth-Keycloak-4D4D4D?logo=keycloak)
 
@@ -15,12 +16,14 @@
 
 - [Vue d'ensemble](#vue-densemble)
 - [Architecture](#architecture)
+- [GitFlow & Environnements](#gitflow--environnements)
 - [Stack technique](#stack-technique)
 - [Structure du projet](#structure-du-projet)
 - [Composants](#composants)
+- [Helm Charts](#helm-charts)
 - [Pipeline CI/CD](#pipeline-cicd)
 - [Flux d'authentification](#flux-dauthentification)
-- [Déploiement Kubernetes](#déploiement-kubernetes)
+- [Déploiement](#déploiement)
 - [Lancement local](#lancement-local)
 - [Améliorations prévues](#améliorations-prévues)
 
@@ -32,10 +35,10 @@ Ce projet est une plateforme applicative microservices déployée sur Kubernetes
 
 L'objectif est de couvrir l'ensemble du cycle de vie d'une application en production :
 
-- **Développement** → code versionné sur GitHub
-- **Build** → images Docker buildées automatiquement par Jenkins
+- **Développement** → code versionné sur GitHub (branches `develop` / `main`)
+- **Build** → images Docker buildées automatiquement par Jenkins (Poll SCM)
 - **Registry** → images stockées dans Nexus Repository Manager
-- **Déploiement** → manifests Kubernetes appliqués sur un cluster k3s
+- **Déploiement** → géré par **Helm** sur un cluster k3s (multi-environnement)
 - **Authentification** → centralisée via Keycloak (OAuth2 / OpenID Connect)
 - **Gestion des secrets** → HashiCorp Vault avec injection via Vault Agent Injector
 
@@ -46,34 +49,36 @@ L'objectif est de couvrir l'ensemble du cycle de vie d'une application en produc
 ```
                         ┌─────────────────────────────────────┐
                         │         GitHub (source)             │
-                        └────────────────┬────────────────────┘
-                                         │ push / webhook
-                                         ▼
+                        │   branch develop │ branch main      │
+                        └────────┬─────────────────┬──────────┘
+                                 │ Poll SCM        │ Poll SCM
+                                 ▼                 ▼
                         ┌─────────────────────────────────────┐
                         │           Jenkins (CI/CD)           │
-                        │   Build → Push Nexus → Deploy k3s  │
-                        └────────────────┬────────────────────┘
-                                         │
-                                         ▼
-              ┌──────────────────────────────────────────────────┐
-              │                 Kubernetes (k3s)                  │
-              │  Namespace : devops-pipeline                      │
-              │                                                   │
-              │   ┌────────────┐      ┌────────────────────┐     │
-              │   │  Keycloak  │◄────►│   app-frontend     │     │
-              │   │  (Auth)    │      │   Flask  :5000     │     │
-              │   └────────────┘      └──────┬──────┬──────┘     │
-              │                             │      │             │
-              │               ┌─────────────┘      └──────────┐  │
-              │               ▼                               ▼  │
-              │   ┌───────────────────┐      ┌───────────────────┐│
-              │   │   app-users       │      │   app-products    ││
-              │   │   Flask  :5001    │      │   Flask  :5002    ││
-              │   └────────┬──────────┘      └───────────────────┘│
-              │            │                                      │
-              └────────────┼──────────────────────────────────────┘
-                           │
-                           ▼
+                        │  devops-pipeline-develop            │
+                        │  devops-pipeline-main               │
+                        │   Build → Push Nexus → Helm Deploy  │
+                        └────────┬─────────────────┬──────────┘
+                                 │                 │
+                          preprod-platform    prod-platform
+                                 ▼                 ▼
+              ┌──────────────────────────────────────────────┐
+              │           Kubernetes k3s                      │
+              │                                              │
+              │  ┌────────────┐   ┌──────────────────────┐  │
+              │  │  Keycloak  │◄─►│    app-frontend       │  │
+              │  │  (Auth)    │   │    Flask  :5000       │  │
+              │  └────────────┘   └───────┬──────┬────────┘  │
+              │                          │      │            │
+              │           ┌──────────────┘      └─────────┐  │
+              │           ▼                               ▼  │
+              │  ┌─────────────────┐      ┌─────────────────┐│
+              │  │   app-users     │      │  app-products   ││
+              │  │   Flask :5001   │      │  Flask :5002    ││
+              │  └────────┬────────┘      └─────────────────┘│
+              └───────────┼──────────────────────────────────┘
+                          │
+                          ▼
               ┌─────────────────────────┐
               │   PostgreSQL (VM Linux) │
               │   Base : workflow       │
@@ -81,7 +86,33 @@ L'objectif est de couvrir l'ensemble du cycle de vie d'une application en produc
               └─────────────────────────┘
 ```
 
-**HashiCorp Vault** injecte les secrets dans les pods via le Vault Agent Injector (annotations Kubernetes).
+**HashiCorp Vault** injecte les secrets dans les pods via le Vault Agent Injector :
+- `app-frontend` → `KEYCLOAK_CLIENT_SECRET` depuis `secret/data/frontend`
+- `app-users` → credentials DB depuis `secret/data/users` (prod uniquement)
+
+---
+
+## GitFlow & Environnements
+
+Ce projet suit un workflow **GitFlow** avec deux environnements distincts :
+
+```
+develop ──── push ──► Jenkins ──► preprod-platform  (tests)
+                                         │
+                               Pull Request + merge
+                                         │
+main    ──── push ──► Jenkins ──► prod-platform     (production)
+```
+
+**Ports par environnement :**
+
+| Service | Preprod (NodePort) | Prod (NodePort) |
+|---|---|---|
+| app-frontend | 30010 | 31000 |
+| app-users | 30011 | 30001 |
+| app-products | 30012 | 30002 |
+
+**Jenkins Poll SCM** vérifie GitHub toutes les 2 minutes et déclenche automatiquement le bon pipeline selon la branche détectée.
 
 ---
 
@@ -92,10 +123,11 @@ L'objectif est de couvrir l'ensemble du cycle de vie d'une application en produc
 | Langage applicatif | Python 3.12 / Flask |
 | Conteneurisation | Docker |
 | Orchestration | Kubernetes k3s |
-| CI/CD | Jenkins |
+| Package Manager K8s | Helm |
+| CI/CD | Jenkins (Poll SCM) |
 | Registry | Sonatype Nexus |
 | Authentification | Keycloak (OAuth2 / OIDC) |
-| Gestion des secrets | HashiCorp Vault |
+| Gestion des secrets | HashiCorp Vault + Agent Injector |
 | Base de données | PostgreSQL |
 | Réseau K8s | Calico CNI |
 | OS cible | Rocky Linux / Ubuntu |
@@ -107,30 +139,51 @@ L'objectif est de couvrir l'ensemble du cycle de vie d'une application en produc
 ```
 devops-pipeline/
 │
-├── app-frontend/          # Interface utilisateur Flask
-│   ├── app.py             # Application principale
+├── app-frontend/
+│   ├── app.py                      # Interface utilisateur Flask (UI moderne)
 │   ├── Dockerfile
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── chart/                      # Helm Chart
+│       ├── Chart.yaml
+│       ├── values.yaml
+│       ├── values-preprod.yaml
+│       ├── values-prod.yaml        # Vault activé (frontend-sa)
+│       └── templates/
+│           ├── _helpers.tpl
+│           ├── deployment.yaml
+│           └── service.yaml
 │
-├── app-products/          # Microservice catalogue produits
-│   ├── app.py
+├── app-products/
+│   ├── app.py                      # Microservice catalogue produits
 │   ├── Dockerfile
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── chart/
+│       ├── Chart.yaml
+│       ├── values.yaml
+│       ├── values-preprod.yaml
+│       ├── values-prod.yaml        # 2 replicas en prod
+│       └── templates/
+│           ├── _helpers.tpl
+│           ├── deployment.yaml
+│           └── service.yaml
 │
-├── app-users/             # Microservice utilisateurs → PostgreSQL
-│   ├── app.py
+├── app-users/
+│   ├── app.py                      # Microservice users → PostgreSQL
 │   ├── Dockerfile
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── chart/
+│       ├── Chart.yaml
+│       ├── values.yaml
+│       ├── values-preprod.yaml     # Credentials DB via env vars
+│       ├── values-prod.yaml        # Credentials DB via Vault (users-sa)
+│       └── templates/
+│           ├── _helpers.tpl
+│           ├── deployment.yaml     # readiness + liveness probes
+│           └── service.yaml
 │
-├── k8s/                   # Manifests Kubernetes
-│   ├── app-frontend.yml   # Deployment + Service + annotations Vault
-│   ├── app-products.yml   # Deployment + Service
-│   └── app-users.yml      # Deployment + Service
-│
-├── keycloak/              # Configuration Keycloak (realm, client)
-├── nexus/                 # Configuration Nexus Repository
-│
-├── Jenkinsfile            # Pipeline CI/CD complet
+├── keycloak/                       # Configuration Keycloak
+├── nexus/                          # Configuration Nexus
+├── Jenkinsfile                     # Pipeline CI/CD (Poll SCM + GitFlow)
 └── README.md
 ```
 
@@ -143,11 +196,15 @@ devops-pipeline/
 Application Flask faisant office de portail utilisateur.
 
 - Authentification via Keycloak (OAuth2 Direct Grant)
-- Session Flask après validation du token
-- Consommation des APIs `app-products` et `app-users`
-- Secret Keycloak (`KEYCLOAK_CLIENT_SECRET`) injecté depuis **Vault** via le fichier `/vault/secrets/keycloak`
+- Session Flask après validation du token JWT
+- `KEYCLOAK_CLIENT_SECRET` injecté depuis Vault (`/vault/secrets/keycloak`)
+- Configuration externalisée via variables d'environnement
 
-**Port exposé :** `5000` → NodePort `30000`
+| Endpoint | Description |
+|---|---|
+| `GET /` | Dashboard (authentification requise) |
+| `GET /login` | Page de connexion |
+| `GET /logout` | Déconnexion |
 
 ---
 
@@ -161,180 +218,196 @@ Microservice REST exposant un catalogue de produits d'assurance.
 | `GET /products` | Liste de tous les produits |
 | `GET /products/<id>` | Détail d'un produit |
 
-**Port exposé :** `5002` → NodePort `30002`
-
 ---
 
 ### app-users
 
-Microservice REST connecté à **PostgreSQL**.
+Microservice REST connecté à PostgreSQL.
 
 | Endpoint | Description |
 |---|---|
 | `GET /health` | Healthcheck du service |
 | `GET /users` | Liste des utilisateurs depuis la base |
 
-Connexion à la base `workflow`, table `users` (colonnes : `id`, `username`, `email`).
-
-**Port exposé :** `5001` → NodePort `30001`
+**Gestion des secrets DB :**
+- **Preprod** : credentials via variables d'environnement Helm
+- **Prod** : credentials injectés depuis Vault (`/vault/secrets/db`)
 
 ---
 
 ### HashiCorp Vault
 
-Gestion centralisée des secrets.
+| Secret | Path Vault | Service | Env |
+|---|---|---|---|
+| `keycloak-client-secret` | `secret/data/frontend` | app-frontend | preprod + prod |
+| `db-host/name/user/password` | `secret/data/users` | app-users | prod |
 
-- Secret stocké : `secret/frontend` → clé `keycloak-client-secret`
-- Injection via **Vault Agent Injector** (annotations sur le pod `app-frontend`)
-- ServiceAccount K8s dédié : `frontend-sa` avec le rôle Vault `frontend-role`
-- Le secret est monté dans le pod à `/vault/secrets/keycloak`
+- `frontend-sa` → rôle `frontend-role` → policy `frontend-policy`
+- `users-sa` → rôle `users-role` → policy `users-policy`
 
 ---
 
 ### Keycloak
 
-Fournisseur d'identité centralisé.
-
 - **Realm :** `zak-local`
-- **Client :** `app-frontend` (flux Direct Grant activé)
-- Génère les tokens OAuth2 / OpenID Connect consommés par le frontend
+- **Client :** `app-frontend` (flux Direct Grant)
+- Génère les tokens OAuth2 / OpenID Connect
+
+---
+
+## Helm Charts
+
+Chaque microservice a son propre Helm Chart avec séparation preprod/prod.
+
+```
+chart/
+├── _helpers.tpl         # svc.name, svc.fullname, svc.labels
+├── deployment.yaml      # readiness + liveness probes inclus
+└── service.yaml         # NodePort ou ClusterIP selon l'env
+```
+
+**Vérifier sans déployer :**
+
+```bash
+helm template app-users ./app-users/chart \
+  -f ./app-users/chart/values-prod.yaml \
+  --namespace prod-platform
+
+helm lint ./app-users/chart -f ./app-users/chart/values-prod.yaml
+```
 
 ---
 
 ## Pipeline CI/CD
 
-Le pipeline Jenkins orchestre 5 étapes automatiques déclenchées sur chaque push GitHub :
+Deux jobs Jenkins avec **Poll SCM** (toutes les 2 minutes) :
 
 ```
-GitHub Push
-    │
-    ▼
-┌─────────────┐
-│ 1. Clone    │  Récupération du code source
-└──────┬──────┘
-       ▼
-┌─────────────────┐
-│ 2. Build Images │  docker build des 3 apps (tag : vBUILD_NUMBER)
-└──────┬──────────┘
-       ▼
-┌──────────────────┐
-│ 3. Push to Nexus │  docker push vers 192.168.74.128:8082
-└──────┬───────────┘
-       ▼
-┌──────────────────────┐
-│ 4. Update Manifests  │  sed -i sur les YAMLs k8s (mise à jour du tag image)
-└──────┬───────────────┘
-       ▼
-┌─────────────────┐
-│ 5. Deploy k3s   │  kubectl apply -f k8s/*.yml
-└─────────────────┘
+GitHub push develop                    GitHub push/merge main
+       │                                       │
+       ▼                                       ▼
+devops-pipeline-develop            devops-pipeline-main
+       │                                       │
+  ┌────┴────┐                            ┌─────┴────┐
+  │ Clone   │                            │  Clone   │
+  │ Build   │                            │  Build   │
+  │ Push    │                            │  Push    │
+  │ Nexus   │                            │  Nexus   │
+  │ Helm ──►│ preprod-platform           │  Helm ──►│ prod-platform
+  └─────────┘                            └──────────┘
+  ✅ PREPROD                             ✅ PROD
 ```
-
-Les credentials Nexus sont stockés dans **Jenkins Credentials Store** (id : `nexus-credentials`), jamais dans le code.
-
-Le tag de l'image est automatiquement versionné via `v${BUILD_NUMBER}`.
 
 ---
 
 ## Flux d'authentification
 
 ```
-Utilisateur
+Utilisateur → http://<NODE_IP>:31000
     │
-    │  1. Accède à http://<NODE_IP>:30000
     ▼
-app-frontend
+app-frontend (formulaire login)
     │
-    │  2. Affiche le formulaire de login
-    │
-    │  3. Envoie username + password à Keycloak
     ▼
-Keycloak (Direct Grant)
-    │
-    │  4. Valide les credentials
-    │  5. Retourne un access_token JWT
+Keycloak Direct Grant
+    │ access_token JWT
     ▼
-app-frontend
+app-frontend (session Flask)
+    ├──► app-products GET /products
+    └──► app-users    GET /users
     │
-    │  6. Crée une session Flask
-    │  7. Appelle app-products → GET /products
-    │  8. Appelle app-users → GET /users
     ▼
-Dashboard utilisateur (produits + utilisateurs PostgreSQL)
+Dashboard (produits + utilisateurs PostgreSQL)
 ```
 
 ---
 
-## Déploiement Kubernetes
+## Déploiement
 
-Tous les composants applicatifs sont déployés dans le namespace `devops-pipeline`.
+### Via Helm
 
 ```bash
-# Créer le namespace
-kubectl create namespace devops-pipeline
+# Preprod (branche develop)
+helm upgrade --install app-users ./app-users/chart \
+  --namespace preprod-platform --create-namespace \
+  -f ./app-users/chart/values-preprod.yaml \
+  --set image.tag=v1
 
-# Appliquer les manifests
-kubectl apply -f k8s/app-users.yml -n devops-pipeline
-kubectl apply -f k8s/app-products.yml -n devops-pipeline
-kubectl apply -f k8s/app-frontend.yml -n devops-pipeline
-
-# Vérifier les pods
-kubectl get pods -n devops-pipeline
-
-# Vérifier les services
-kubectl get svc -n devops-pipeline
+# Prod (branche main)
+helm upgrade --install app-users ./app-users/chart \
+  --namespace prod-platform --create-namespace \
+  -f ./app-users/chart/values-prod.yaml \
+  --set image.tag=v1
 ```
 
-**Ports exposés (NodePort) :**
+### Vérifier les pods
 
-| Service | Port interne | NodePort |
-|---|---|---|
-| app-frontend | 5000 | 30000 |
-| app-users | 5001 | 30001 |
-| app-products | 5002 | 30002 |
+```bash
+kubectl get pods -n preprod-platform
+kubectl get pods -n prod-platform
+```
+
+### Configurer Vault pour un nouveau service
+
+```bash
+# 1. ServiceAccount
+kubectl create serviceaccount <sa-name> -n prod-platform
+
+# 2. Policy
+kubectl exec -n vault vault-0 -- sh -c \
+  'echo "path \"secret/data/<svc>\" { capabilities = [\"read\"] }" \
+  > /tmp/p.hcl && vault policy write <svc>-policy /tmp/p.hcl'
+
+# 3. Role
+kubectl exec -n vault vault-0 -- vault write auth/kubernetes/role/<svc>-role \
+  bound_service_account_names=<sa-name> \
+  bound_service_account_namespaces=prod-platform \
+  policies=<svc>-policy ttl=24h
+
+# 4. Secret
+kubectl exec -n vault vault-0 -- vault kv put secret/<svc> key="value"
+```
 
 ---
 
 ## Lancement local (sans Kubernetes)
 
 ```bash
-# Cloner le repo
-git clone https://github.com/Guizak-5621/devops-pipeline.git
+git clone https://github.com/ishakguechoud/devops-pipeline.git
 cd devops-pipeline
 
-# Lancer app-products
-cd app-products
-pip install -r requirements.txt
-python app.py
+# app-products
+cd app-products && pip install -r requirements.txt && python app.py
 
-# Lancer app-users (nécessite PostgreSQL accessible)
+# app-users
 cd ../app-users
-pip install -r requirements.txt
-python app.py
+export DB_HOST=localhost DB_NAME=workflow DB_USER=... DB_PASSWORD=...
+pip install -r requirements.txt && python app.py
 
-# Lancer le frontend
+# app-frontend
 cd ../app-frontend
-export KEYCLOAK_CLIENT_SECRET=<votre_secret>
-pip install -r requirements.txt
-python app.py
+export KEYCLOAK_CLIENT_SECRET=<secret>
+export KEYCLOAK_BASE_URL=http://<keycloak-ip>:8086
+pip install -r requirements.txt && python app.py
 ```
 
 ---
 
 ## Améliorations prévues
 
-- [ ] **Communication interne K8s** — remplacer les NodePort inter-services par des ClusterIP (`http://app-users:5001`, `http://app-products:5002`)
-- [ ] **Secrets DB dans Vault** — externaliser `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` depuis le code source de `app-users`
-- [ ] **Observabilité** — intégration Prometheus + Grafana pour la supervision des pods
-- [ ] **Pipeline complet** — déclencher automatiquement Jenkins via webhook GitHub sur chaque merge sur `main`
-- [ ] **Dockerfiles multi-stage** — réduire la taille des images de production
+- [ ] **Webhook GitHub → Jenkins** — remplacer le Poll SCM par un webhook via ngrok ou reverse proxy
 - [ ] **Ingress Controller** — remplacer les NodePort par un Ingress NGINX avec nom de domaine
+- [ ] **Observabilité** — Prometheus + Grafana pour la supervision des pods
+- [ ] **Dockerfiles multi-stage** — réduire la taille des images de production
+- [ ] **Communication interne K8s** — appels inter-services via ClusterIP (`http://app-users:5001`)
+- [ ] **Tests automatisés** — stage de tests dans le pipeline avant déploiement
 
 ---
 
 ## Auteur
 
 **Ishak GUECHOUD** — DevOps Engineer  
-[GitHub](https://github.com/Guizak-5621) · [LinkedIn](#)
+[GitHub](https://github.com/ishakguechoud) · [LinkedIn](#)
 
-> Projet réalisé dans le cadre d'un portfolio DevOps personnel — stack complète déployée sur infrastructure locale (homelab).
+> Projet portfolio DevOps — stack complète déployée sur homelab.  
+> Architecture transposable en environnement d'entreprise (Helm, Vault, GitFlow, multi-namespace).
