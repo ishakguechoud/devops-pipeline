@@ -5,6 +5,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
   annotations:
     kubernetes.io/ingress.class: "nginx"
+    # 🔧 Indique à Nginx de surcharger le Host envoyé au conteneur Flask
+    nginx.ingress.kubernetes.io/upstream-vhost: "127.0.0.1"
 spec:
   ingressClassName: nginx
   rules:
@@ -12,7 +14,7 @@ spec:
     http:
       paths:
       - path: /
-        pathType: ImplementationSpecific
+        pathType: Prefix
         backend:
           service:
             name: app-frontend-preprod-service
