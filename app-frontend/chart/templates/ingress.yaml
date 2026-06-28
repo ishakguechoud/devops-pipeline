@@ -5,6 +5,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
   annotations:
     kubernetes.io/ingress.class: "nginx"
+    # Cette annotation indique à Nginx comment traiter le chemin
+    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   ingressClassName: nginx
   rules:
@@ -12,10 +14,9 @@ spec:
     http:
       paths:
       - path: /
-        pathType: Prefix
+        pathType: ImplementationSpecific
         backend:
           service:
-            # On combine le nom de la release (app-frontend) et la valeur de l'environnement
-            name: {{ .Release.Name }}-{{ .Values.environment | default "preprod" }}-service
+            name: app-frontend-preprod-service
             port:
               number: 5000
