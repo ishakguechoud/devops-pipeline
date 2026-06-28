@@ -7,10 +7,11 @@ pipeline {
 
     environment {
         NEXUS_URL = '192.168.74.128:8082'
-        // Format de la date : AnnéeMoisJour-HeureMinute (ex: 20260628-1055)
         BUILD_TIMESTAMP = "${currentBuild.startTimeInMillis ? new Date(currentBuild.startTimeInMillis).format('yyyyMMdd-HHmm') : ''}"
         
-        // Initialisation des variables globales (seront écrasées dans le premier stage)
+        // 📦 Le nom de ton projet qui va regrouper tes microservices
+        PROJECT_NAME = 'workflow-devops'
+        
         ENV_NAME = 'preprod'
         K8S_NAMESPACE = 'preprod-platform'
         SHORT_TAG = ''
@@ -20,29 +21,26 @@ pipeline {
         stage('Initialize Env & Tags') {
             steps {
                 script {
-                    // 1. Détermination de l'environnement selon la branche
                     if (env.GIT_BRANCH == 'origin/main' || env.GIT_BRANCH == 'main') {
                         ENV_NAME = "prod"
                         K8S_NAMESPACE = "prod-platform"
                     }
 
-                    // 2. Création du tag sans le préfixe d'application (ex: Application5-20260628-1055)
                     SHORT_TAG = "Application${BUILD_NUMBER}-${BUILD_TIMESTAMP}"
 
                     echo "🌿 Branche détectée : ${env.GIT_BRANCH}"
-                    echo "🚀 Environnement cible : ${ENV_NAME.toUpperCase()}"
-                    echo "📁 Sous-dossier Nexus : /v2/app-xxxx/${ENV_NAME}/"
-                    echo "🏷️ Tag final de l'image : ${SHORT_TAG}"
+                    echo "📦 Projet : ${PROJECT_NAME}"
+                    echo "🚀 Environnement : ${ENV_NAME.toUpperCase()}"
+                    echo "🏷️ Tag de l'image : ${SHORT_TAG}"
                 }
             }
         }
 
         stage('Build Images') {
             steps {
-                // L'astuce est ici : ajouter /${ENV_NAME} crée le sous-dossier automatiquement dans Nexus
-                sh "docker build -t ${NEXUS_URL}/app-users/${ENV_NAME}:${SHORT_TAG} ./app-users"
-                sh "docker build -t ${NEXUS_URL}/app-products/${ENV_NAME}:${SHORT_TAG} ./app-products"
-                sh "docker build -t ${NEXUS_URL}/app-frontend/${ENV_NAME}:${SHORT_TAG} ./app-frontend"
+                sh "docker build -t ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-users:${SHORT_TAG} ./app-users"
+                sh "docker build -t ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-products:${SHORT_TAG} ./app-products"
+                sh "docker build -t ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-frontend:${SHORT_TAG} ./app-frontend"
             }
         }
 
@@ -58,9 +56,9 @@ pipeline {
                     sh """
                     echo \$NEXUS_PASS | docker login ${NEXUS_URL} -u \$NEXUS_USER --password-stdin
 
-                    docker push ${NEXUS_URL}/app-users/${ENV_NAME}:${SHORT_TAG}
-                    docker push ${NEXUS_URL}/app-products/${ENV_NAME}:${SHORT_TAG}
-                    docker push ${NEXUS_URL}/app-frontend/${ENV_NAME}:${SHORT_TAG}
+                    docker push ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-users:${SHORT_TAG}
+                    docker push ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-products:${SHORT_TAG}
+                    docker push ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-frontend:${SHORT_TAG}
                     """
                 }
             }
@@ -97,10 +95,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Pipeline terminé avec succès — trié dans le dossier [${ENV_NAME.toUpperCase()}] sur Nexus"
+            echo "✅ Pipeline réussi ! Images stockées dans : ${PROJECT_NAME}/${ENV_NAME}/"
         }
         failure {
-            echo '❌ Pipeline échoué — vérifier les logs ci-dessus'
+            echo '❌ Pipeline échoué'
         }
     }
 }
