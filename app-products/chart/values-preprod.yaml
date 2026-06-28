@@ -3,6 +3,10 @@ replicaCount: 1
 labels:
   environment: preprod
 
+image:
+  repository: "workflow-devops/preprod/app-products"
+
+
 service:
   type: NodePort
   port: 5002
