@@ -8,6 +8,8 @@ image:
   repository: "workflow-devops/prod/app-frontend"
 
 service:
+  type: NodePort
+  port: 5000
   nodePort: 31000
 
 env:
@@ -27,4 +29,5 @@ podAnnotations:
     {{- end }}
 
 ingress:
-  host: prod.workflow-devops.local
+  enabled: true
+  host: app.prod.zak-local
