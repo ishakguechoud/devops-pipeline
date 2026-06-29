@@ -8,6 +8,8 @@ image:
   repository: "workflow-devops/prod/app-frontend"
 
 service:
+  type: NodePort
+  port: 5000
   nodePort: 31000
 
 env:
@@ -25,3 +27,7 @@ podAnnotations:
     {{ with secret "secret/data/frontend" -}}
     keycloak-client-secret: {{ index .Data.data "keycloak-client-secret" }}
     {{- end }}
+
+ingress:
+  enabled: true
+  host: app.prod.zak-local

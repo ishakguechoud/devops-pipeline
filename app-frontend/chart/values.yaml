@@ -1,15 +1,44 @@
+# 🏷️ Ajout des labels requis par tes fonctions _helpers.tpl
+labels:
+  environment: "preprod"
+
 containerPort: 5000
 
 image:
   registry: "192.168.74.128:8082"
   repository: "app-frontend"
   tag: "latest"
+  pullPolicy: "IfNotPresent"
 
 service:
   type: NodePort
   port: 5000
   nodePort: 30005
 
+env:
+  USERS_SERVICE_URL: "http://192.168.74.128:30011"
+  PRODUCTS_SERVICE_URL: "http://192.168.74.128:30012"
+  KEYCLOAK_BASE_URL: "http://172.28.77.160:8086"
+  KEYCLOAK_REALM: "zak-local"
+  KEYCLOAK_CLIENT_ID: "app-frontend"
+  FLASK_SECRET_KEY: "une_cle_secrete_super_secure"
+
 vault:
   role: "frontend-role"
   secretPath: "secret/data/frontend"
+
+podAnnotations:
+  vault.hashicorp.com/agent-inject: "true"
+  vault.hashicorp.com/role: "frontend-role"
+  vault.hashicorp.com/agent-inject-secret-keycloak: "secret/data/frontend"
+  vault.hashicorp.com/agent-inject-template-keycloak: |
+    {{- with secret "secret/data/frontend" -}}
+    keycloak-client-secret: {{ index .Data.data "keycloak-client-secret" }}
+    {{- end -}}
+
+serviceAccount:
+  name: "frontend-sa"
+
+ingress:
+  enabled: false
+  host: "app.prod.zak-local"

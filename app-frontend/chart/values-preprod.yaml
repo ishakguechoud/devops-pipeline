@@ -27,3 +27,7 @@ podAnnotations:
     {{ with secret "secret/data/frontend" -}}
     keycloak-client-secret: {{ index .Data.data "keycloak-client-secret" }}
     {{- end }}
+
+ingress:
+  enabled: true
+  host: app.preprod.zak-local

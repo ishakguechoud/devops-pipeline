@@ -608,6 +608,6 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+if __name__ == '__main__':
+    # On garde le debug pour tes tests, mais on désactive le reloader automatique qui binde sur 127.0.0.1
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
