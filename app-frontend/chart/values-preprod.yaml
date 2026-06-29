@@ -29,4 +29,5 @@ podAnnotations:
     {{- end }}
 
 ingress:
-  host: preprod.workflow-devops.local
+  enabled: true
+  host: app.preprod.zak-local
