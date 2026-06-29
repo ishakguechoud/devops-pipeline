@@ -19,6 +19,6 @@ spec:
           service:
             # 🌟 On utilise le nom du release Helm pour basculer automatiquement
             # entre app-frontend-preprod-service et app-frontend-prod-service
-            name: {{ .Release.Name }}-service
-            port:
+            name: {{ if contains "preprod" .Release.Namespace }}app-frontend-preprod-service{{ else }}app-frontend-prod-service{{ end }}   
+            port: 
               number: 5000  
