@@ -81,20 +81,22 @@ pipeline {
                         # Active l'authentification Kubernetes
                         vault auth enable kubernetes || true
                         
-                        # Lie Vault au cluster K3s (On ajoute disable_iss_validation pour éviter les rejets de tokens)
+                        # Lie Vault au cluster K3s (sans validations strictes d'émetteurs et de certificats locaux pour le clock skew)
                         vault write auth/kubernetes/config \\
                             kubernetes_host='https://kubernetes.default.svc:443' \\
-                            disable_iss_validation=true || true
+                            disable_iss_validation=true \\
+                            disable_local_ca_jwt=true || true
                         
                         # On écrit la politique directement dans un fichier propre
                         printf 'path \\"secret/data/frontend\\" { capabilities = [\\"read\\"] }\\n' > /tmp/policy.hcl
                         vault policy write frontend-policy /tmp/policy.hcl
                         
-                        # Crée le rôle pour preprod et prod
+                        # Crée le rôle pour preprod et prod avec audience vide pour contourner le rejet temporelle du JWT
                         vault write auth/kubernetes/role/frontend-role \\
                             bound_service_account_names=frontend-sa \\
                             bound_service_account_namespaces=preprod-platform,prod-platform \\
                             policies=frontend-policy \\
+                            audience=\\\"\\\" \\
                             ttl=24h || true
                     "
                     """
