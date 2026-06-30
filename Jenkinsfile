@@ -68,39 +68,45 @@ pipeline {
         stage('Configure Vault') {
             steps {
                 withCredentials([string(credentialsId: 'vault-token', variable: 'VAULT_TOKEN')]) {
-                    sh """
+                    sh '''
                     echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME}..."
                     
-                    docker run --rm -e VAULT_ADDR=${VAULT_ADDR} -e VAULT_TOKEN=\$VAULT_TOKEN hashicorp/vault:2.0.2 sh -c "
+                    # On utilise des guillemets simples purs pour le sh -c externe de Docker, 
+                    # ce qui protège l'intégralité de nos commandes Vault des interférences de Jenkins.
+                    docker run --rm -e VAULT_ADDR=${VAULT_ADDR} -e VAULT_TOKEN=$VAULT_TOKEN hashicorp/vault:2.0.2 sh -c '
                         # Active le moteur KV-v2 si ce n'est pas déjà fait
                         vault secrets enable -path=secret kv-v2 || true
                         
-                        # Injecte le secret Keycloak pour l'application
-                        vault kv put secret/data/frontend keycloak-client-secret='une_cle_secrete_super_secure' || true
+                        # 1. Injecte le secret Keycloak au BON chemin (sans double data)
+                        vault kv put secret/frontend keycloak-client-secret="une_cle_secrete_super_secure" || true
                         
-                        # Désactive et réactive proprement l'authentification Kubernetes pour purger le cache d'horloge
+                        # Réinitialise proprement l'authentification Kubernetes
                         vault auth disable kubernetes || true
                         vault auth enable kubernetes
                         
-                        # Lie Vault au cluster K3s avec désactivation complète des vérifications strictes de jetons
-                        vault write auth/kubernetes/config \\
-                            kubernetes_host='https://kubernetes.default.svc:443' \\
-                            disable_iss_validation=true \\
-                            disable_local_ca_jwt=true || true
+                        # 2. Lie Vault au cluster K3s avec le bon ISSUER et le bon Certificat CA
+                        vault write auth/kubernetes/config \
+                            kubernetes_host="https://kubernetes.default.svc:443" \
+                            kubernetes_ca_cert="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt" \
+                            issuer="https://kubernetes.default.svc.cluster.local" \
+                            disable_iss_validation=false
                         
-                        # On écrit la politique directement dans un fichier propre
-                        printf 'path \\"secret/data/frontend\\" { capabilities = [\\"read\\"] }\\n' > /tmp/policy.hcl
-                        vault policy write frontend-policy /tmp/policy.hcl
+                        # Écrit la politique directement
+                        vault policy write frontend-policy - <<EOF
+path "secret/data/frontend" {
+  capabilities = ["read"]
+}
+EOF
                         
-                        # Crée le rôle pour preprod et prod
-                        vault write auth/kubernetes/role/frontend-role \\
-                            bound_service_account_names=frontend-sa \\
-                            bound_service_account_namespaces=preprod-platform,prod-platform \\
-                            policies=frontend-policy \\
-                            audience=\\\"\\\" \\
-                            ttl=24h || true
-                    "
-                    """
+                        # 3. Crée le rôle Kubernetes avec une audience vide propre
+                        vault write auth/kubernetes/role/frontend-role \
+                            bound_service_account_names="frontend-sa" \
+                            bound_service_account_namespaces="preprod-platform,prod-platform" \
+                            policies="frontend-policy" \
+                            audience="" \
+                            ttl="24h"
+                    '
+                    '''
                 }
             }
         }
