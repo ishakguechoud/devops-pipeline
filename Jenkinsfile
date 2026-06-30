@@ -65,50 +65,52 @@ pipeline {
             }
         }
 
-        stage('Configure Vault') {
+    stage('Configure Vault') {
             steps {
                 withCredentials([string(credentialsId: 'vault-token', variable: 'INTERNAL_VAULT_TOKEN')]) {
-                    script {
-                        echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME}..."
-                        
-                        // Jenkins utilise l'image officielle et exécute le bloc directement à l'intérieur
-                        docker.image('hashicorp/vault:2.0.2').inside("-e VAULT_ADDR=${env.VAULT_ADDR} -e VAULT_TOKEN=${INTERNAL_VAULT_TOKEN}") {
-                            
-                            sh '''
-                            # 1. Active le moteur KV-v2 si ce n'est pas déjà fait
-                            vault secrets enable -path=secret kv-v2 || true
-                            
-                            # 2. Injecte le secret Keycloak au BON chemin
-                            vault kv put secret/frontend keycloak-client-secret="une_cle_secrete_super_secure" || true
-                            
-                            # Réinitialise proprement l'authentification Kubernetes
-                            vault auth disable kubernetes || true
-                            vault auth enable kubernetes
-                            
-                            # 3. Lie Vault au cluster K3s avec le bon ISSUER et le bon Certificat CA
-                            vault write auth/kubernetes/config \
-                                kubernetes_host="https://kubernetes.default.svc:443" \
-                                kubernetes_ca_cert="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt" \
-                                issuer="https://kubernetes.default.svc.cluster.local" \
-                                disable_iss_validation=false
-                            
-                            # Écrit la politique directement
-                            vault policy write frontend-policy - <<EOF
+                    echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME}..."
+                    
+                    // On lance le conteneur en arrière-plan, on exécute les commandes dedans via docker exec, puis on le nettoie.
+                    // Cette approche élimine TOUS les problèmes d'échappement de caractères de Jenkins.
+                    sh """
+                    # 1. Démarrage d'un conteneur temporaire Vault en mode interactif/détaché
+                    docker run -d --name vault-cli-agent -e VAULT_ADDR=${VAULT_ADDR} -e VAULT_TOKEN=\$INTERNAL_VAULT_TOKEN hashicorp/vault:2.0.2 sleep 300
+                    
+                    # 2. Exécution des configurations à l'intérieur du conteneur
+                    docker exec vault-cli-agent vault secrets enable -path=secret kv-v2 || true
+                    
+                    # Injection du secret au bon chemin (sans double data)
+                    docker exec vault-cli-agent vault kv put secret/frontend keycloak-client-secret="une_cle_secrete_super_secure" || true
+                    
+                    # Réinitialisation de l'auth Kubernetes
+                    docker exec vault-cli-agent vault auth disable kubernetes || true
+                    docker exec vault-cli-agent vault auth enable kubernetes
+                    
+                    # Liaison avec le cluster K3s (avec le bon issuer et le CA local du pod)
+                    docker exec vault-cli-agent vault write auth/kubernetes/config \
+                        kubernetes_host="https://kubernetes.default.svc:443" \
+                        kubernetes_ca_cert="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt" \
+                        issuer="https://kubernetes.default.svc.cluster.local" \
+                        disable_iss_validation=false
+                    
+                    # Injection de la politique via une commande heredoc exécutée dans le conteneur
+                    docker exec -i vault-cli-agent sh -c 'vault policy write frontend-policy -' <<EOF
 path "secret/data/frontend" {
   capabilities = ["read"]
 }
 EOF
-                            
-                            # 4. Crée le rôle Kubernetes avec une audience vide propre
-                            vault write auth/kubernetes/role/frontend-role \
-                                bound_service_account_names="frontend-sa" \
-                                bound_service_account_namespaces="preprod-platform,prod-platform" \
-                                policies="frontend-policy" \
-                                audience="" \
-                                ttl="24h"
-                            '''
-                        }
-                    }
+
+                    # Configuration du rôle Kubernetes avec audience vide
+                    docker exec vault-cli-agent vault write auth/kubernetes/role/frontend-role \
+                        bound_service_account_names="frontend-sa" \
+                        bound_service_account_namespaces="preprod-platform,prod-platform" \
+                        policies="frontend-policy" \
+                        audience="" \
+                        ttl="24h"
+                    
+                    # 3. Nettoyage du conteneur temporaire
+                    docker rm -f vault-cli-agent
+                    """
                 }
             }
         }
