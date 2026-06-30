@@ -70,8 +70,6 @@ pipeline {
                 withCredentials([string(credentialsId: 'vault-token', variable: 'INTERNAL_VAULT_TOKEN')]) {
                     echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME}..."
                     
-                    // On lance le conteneur en arrière-plan, on exécute les commandes dedans via docker exec, puis on le nettoie.
-                    // Cette approche élimine TOUS les problèmes d'échappement de caractères de Jenkins.
                     sh """
                     # 1. Démarrage d'un conteneur temporaire Vault en mode interactif/détaché
                     docker run -d --name vault-cli-agent -e VAULT_ADDR=${VAULT_ADDR} -e VAULT_TOKEN=\$INTERNAL_VAULT_TOKEN hashicorp/vault:2.0.2 sleep 300
@@ -79,21 +77,30 @@ pipeline {
                     # 2. Exécution des configurations à l'intérieur du conteneur
                     docker exec vault-cli-agent vault secrets enable -path=secret kv-v2 || true
                     
-                    # Injection du secret au bon chemin (sans double data)
+                    # Injection du secret au bon chemin
                     docker exec vault-cli-agent vault kv put secret/frontend keycloak-client-secret="une_cle_secrete_super_secure" || true
                     
                     # Réinitialisation de l'auth Kubernetes
                     docker exec vault-cli-agent vault auth disable kubernetes || true
                     docker exec vault-cli-agent vault auth enable kubernetes
                     
-                    # Liaison avec le cluster K3s (avec le bon issuer et le CA local du pod)
+                    # Extraction dynamique du CA de Kubernetes (K3s) depuis le secret local ou l'API
+                    # On le passe sous forme de texte brut via l'entrée standard (stdin)
+                    K8S_CA_CERT=\$(kubectl get secret -n preprod-platform \$(kubectl get sa frontend-sa -n preprod-platform -o jsonpath='{.secrets[0].name}') -o jsonpath='{.data.ca\\.crt}' | base64 --decode)
+                    
+                    # Si la commande du dessus est vide (dépend de la version k8s), on utilise la config locale :
+                    if [ -z "\$K8S_CA_CERT" ]; then
+                        K8S_CA_CERT=\$(kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode)
+                    fi
+
+                    # Liaison avec le cluster K3s en passant directement la chaîne du certificat
                     docker exec vault-cli-agent vault write auth/kubernetes/config \
                         kubernetes_host="https://kubernetes.default.svc:443" \
-                        kubernetes_ca_cert="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt" \
+                        kubernetes_ca_cert="\$K8S_CA_CERT" \
                         issuer="https://kubernetes.default.svc.cluster.local" \
                         disable_iss_validation=false
                     
-                    # Injection de la politique via une commande heredoc exécutée dans le conteneur
+                    # Injection de la politique
                     docker exec -i vault-cli-agent sh -c 'vault policy write frontend-policy -' <<EOF
 path "secret/data/frontend" {
   capabilities = ["read"]
