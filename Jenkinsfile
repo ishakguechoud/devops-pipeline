@@ -12,7 +12,6 @@ pipeline {
         
         ENV_NAME = 'preprod'
         K8S_NAMESPACE = 'preprod-platform'
-        SHORT_TAG = ''
         
         // 🔐 URL d'accès à ton Vault pour le CLI dans le pipeline
         VAULT_ADDR = 'http://192.168.74.128:30200' 
@@ -23,16 +22,16 @@ pipeline {
             steps {
                 script {
                     if (env.GIT_BRANCH == 'origin/main' || env.GIT_BRANCH == 'main') {
-                        ENV_NAME = "prod"
-                        K8S_NAMESPACE = "prod-platform"
+                        env.ENV_NAME = "prod"
+                        env.K8S_NAMESPACE = "prod-platform"
                     }
 
-                    SHORT_TAG = "Application${BUILD_NUMBER}-${BUILD_TIMESTAMP}"
+                    env.SHORT_TAG = "Application${BUILD_NUMBER}-${BUILD_TIMESTAMP}"
 
                     echo "🌿 Branche détectée : ${env.GIT_BRANCH}"
                     echo "📦 Projet : ${PROJECT_NAME}"
-                    echo "🚀 Environnement : ${ENV_NAME.toUpperCase()}"
-                    echo "🏷️ Tag de l'image : ${SHORT_TAG}"
+                    echo "🚀 Environnement : ${env.ENV_NAME.toUpperCase()}"
+                    echo "🏷️ Tag de l'image : ${env.SHORT_TAG}"
                 }
             }
         }
@@ -77,7 +76,7 @@ pipeline {
                          --data '{"type": "kv", "options": {"version": "2"}}' \
                          ${VAULT_ADDR}/v1/sys/mounts/secret || true
 
-                    # 2. Injection du secret (Corrigé sans le double 'data/data')
+                    # 2. Injection du secret
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request POST \
                          --data '{"data": {"keycloak-client-secret": "une_cle_secrete_super_secure"}}' \
@@ -86,6 +85,7 @@ pipeline {
                     # 3. Réinitialisation de l'authentification Kubernetes
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request DELETE \
+                         --data-binary '{}' \
                          ${VAULT_ADDR}/v1/sys/auth/kubernetes || true
 
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
@@ -93,13 +93,14 @@ pipeline {
                          --data '{"type": "kubernetes"}' \
                          ${VAULT_ADDR}/v1/sys/auth/kubernetes
 
-                    # 4. Liaison avec le cluster K3s local (avec bypass strict des validations temporelles d'émetteur)
+                    # 4. Liaison avec le cluster K3s local (+ marge de tolérance de 5 min pour l'horloge)
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request POST \
                          --data '{
                            "kubernetes_host": "https://kubernetes.default.svc:443",
                            "disable_iss_validation": true,
-                           "disable_local_ca_jwt": true
+                           "disable_local_ca_jwt": true,
+                           "issuer_time_skew_tolerance": "5m"
                          }' \
                          ${VAULT_ADDR}/v1/auth/kubernetes/config
 
@@ -111,7 +112,7 @@ pipeline {
                          }' \
                          ${VAULT_ADDR}/v1/sys/policies/acl/frontend-policy
 
-                    # 6. Création du rôle Kubernetes pour l'application avec audience en format String
+                    # 6. Création du rôle Kubernetes pour l'application
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request POST \
                          --data '{
