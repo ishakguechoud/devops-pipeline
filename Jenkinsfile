@@ -93,16 +93,16 @@ pipeline {
                          --data '{"type": "kubernetes"}' \
                          ${VAULT_ADDR}/v1/sys/auth/kubernetes
 
-                    # 4. Liaison avec le cluster K3s local (Avec une tolérance d'une heure complète)
+                    # 4. Liaison avec le cluster K3s local (Bypass complet des validations temporelles du JWT)
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
-                        --request POST \
-                        --data '{
-                        "kubernetes_host": "https://kubernetes.default.svc:443",
-                        "disable_iss_validation": true,
-                        "disable_local_ca_jwt": true,
-                        "issuer_time_skew_tolerance": "1h"
-                        }' \
-                        ${VAULT_ADDR}/v1/auth/kubernetes/config
+                         --request POST \
+                         --data '{
+                           "kubernetes_host": "https://kubernetes.default.svc:443",
+                           "disable_iss_validation": true,
+                           "disable_local_ca_jwt": true,
+                           "issuer_time_skew_tolerance": "24h"
+                         }' \
+                         ${VAULT_ADDR}/v1/auth/kubernetes/config
 
                     # 5. Création de la politique d'accès (Policy)
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
