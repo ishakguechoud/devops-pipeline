@@ -78,10 +78,11 @@ pipeline {
                         # Injecte le secret Keycloak pour l'application
                         vault kv put secret/data/frontend keycloak-client-secret='une_cle_secrete_super_secure' || true
                         
-                        # Active l'authentification Kubernetes
-                        vault auth enable kubernetes || true
+                        # Désactive et réactive proprement l'authentification Kubernetes pour purger le cache d'horloge
+                        vault auth disable kubernetes || true
+                        vault auth enable kubernetes
                         
-                        # Lie Vault au cluster K3s (sans validations strictes d'émetteurs et de certificats locaux pour le clock skew)
+                        # Lie Vault au cluster K3s avec désactivation complète des vérifications strictes de jetons
                         vault write auth/kubernetes/config \\
                             kubernetes_host='https://kubernetes.default.svc:443' \\
                             disable_iss_validation=true \\
@@ -91,7 +92,7 @@ pipeline {
                         printf 'path \\"secret/data/frontend\\" { capabilities = [\\"read\\"] }\\n' > /tmp/policy.hcl
                         vault policy write frontend-policy /tmp/policy.hcl
                         
-                        # Crée le rôle pour preprod et prod avec audience vide pour contourner le rejet temporelle du JWT
+                        # Crée le rôle pour preprod et prod
                         vault write auth/kubernetes/role/frontend-role \\
                             bound_service_account_names=frontend-sa \\
                             bound_service_account_namespaces=preprod-platform,prod-platform \\
