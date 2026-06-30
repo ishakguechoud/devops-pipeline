@@ -111,14 +111,14 @@ pipeline {
                          }' \
                          ${VAULT_ADDR}/v1/sys/policies/acl/frontend-policy
 
-                    # 6. Création du rôle Kubernetes pour l'application avec audience vide
+                    # 6. Création du rôle Kubernetes pour l'application avec audience en format String
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request POST \
                          --data '{
                            "bound_service_account_names": ["frontend-sa"],
                            "bound_service_account_namespaces": ["preprod-platform", "prod-platform"],
                            "policies": ["frontend-policy"],
-                           "audience": ["https://kubernetes.default.svc.cluster.local"],
+                           "audience": "https://kubernetes.default.svc.cluster.local",
                            "ttl": "24h"
                          }' \
                          ${VAULT_ADDR}/v1/auth/kubernetes/role/frontend-role
