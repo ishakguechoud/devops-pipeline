@@ -65,59 +65,46 @@ pipeline {
             }
         }
 
-    stage('Configure Vault') {
+stage('Configure Vault') {
             steps {
                 withCredentials([string(credentialsId: 'vault-token', variable: 'INTERNAL_VAULT_TOKEN')]) {
-                    echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME}..."
+                    echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME} via Plugin Docker..."
                     
-                    sh """
-                    # 1. Démarrage d'un conteneur temporaire Vault en mode interactif/détaché
-                    docker run -d --name vault-cli-agent -e VAULT_ADDR=${VAULT_ADDR} -e VAULT_TOKEN=\$INTERNAL_VAULT_TOKEN hashicorp/vault:2.0.2 sleep 300
-                    
-                    # 2. Exécution des configurations à l'intérieur du conteneur
-                    docker exec vault-cli-agent vault secrets enable -path=secret kv-v2 || true
-                    
-                    # Injection du secret au bon chemin
-                    docker exec vault-cli-agent vault kv put secret/frontend keycloak-client-secret="une_cle_secrete_super_secure" || true
-                    
-                    # Réinitialisation de l'auth Kubernetes
-                    docker exec vault-cli-agent vault auth disable kubernetes || true
-                    docker exec vault-cli-agent vault auth enable kubernetes
-                    
-                    # Extraction dynamique du CA de Kubernetes (K3s) depuis le secret local ou l'API
-                    # On le passe sous forme de texte brut via l'entrée standard (stdin)
-                    K8S_CA_CERT=\$(kubectl get secret -n preprod-platform \$(kubectl get sa frontend-sa -n preprod-platform -o jsonpath='{.secrets[0].name}') -o jsonpath='{.data.ca\\.crt}' | base64 --decode)
-                    
-                    # Si la commande du dessus est vide (dépend de la version k8s), on utilise la config locale :
-                    if [ -z "\$K8S_CA_CERT" ]; then
-                        K8S_CA_CERT=\$(kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode)
-                    fi
-
-                    # Liaison avec le cluster K3s en passant directement la chaîne du certificat
-                    docker exec vault-cli-agent vault write auth/kubernetes/config \
-                        kubernetes_host="https://kubernetes.default.svc:443" \
-                        kubernetes_ca_cert="\$K8S_CA_CERT" \
-                        issuer="https://kubernetes.default.svc.cluster.local" \
-                        disable_iss_validation=false
-                    
-                    # Injection de la politique
-                    docker exec -i vault-cli-agent sh -c 'vault policy write frontend-policy -' <<EOF
+                    // Le plugin Docker Pipeline gère maintenant le conteneur proprement
+                    docker.image('hashicorp/vault:2.0.2').inside("-e VAULT_ADDR=${VAULT_ADDR} -e VAULT_TOKEN=${INTERNAL_VAULT_TOKEN}") {
+                        sh """
+                        # 1. Activation du moteur de secret (au cas où, le '|| true' évite de planter s'il existe déjà)
+                        vault secrets enable -path=secret kv-v2 || true
+                        
+                        # 2. Injection du secret (CORRIGÉ : Pas de "data/" dans le chemin de la commande 'vault kv put')
+                        vault kv put secret/frontend keycloak-client-secret="une_cle_secrete_super_secure"
+                        
+                        # 3. Réinitialisation propre de la méthode d'authentification Kubernetes
+                        vault auth disable kubernetes || true
+                        vault auth enable kubernetes
+                        
+                        # 4. Liaison avec le cluster K3s local (sans validation stricte d'émetteur pour la preprod)
+                        vault write auth/kubernetes/config \
+                            kubernetes_host="https://kubernetes.default.svc:443" \
+                            disable_iss_validation=true \
+                            issuer="https://kubernetes.default.svc.cluster.local"
+                        
+                        # 5. Création de la politique d'accès pour le frontend
+                        vault policy write frontend-policy - <<EOF
 path "secret/data/frontend" {
   capabilities = ["read"]
 }
 EOF
 
-                    # Configuration du rôle Kubernetes avec audience vide
-                    docker exec vault-cli-agent vault write auth/kubernetes/role/frontend-role \
-                        bound_service_account_names="frontend-sa" \
-                        bound_service_account_namespaces="preprod-platform,prod-platform" \
-                        policies="frontend-policy" \
-                        audience="" \
-                        ttl="24h"
-                    
-                    # 3. Nettoyage du conteneur temporaire
-                    docker rm -f vault-cli-agent
-                    """
+                        # 6. Configuration du rôle Kubernetes associé au ServiceAccount de ton app
+                        vault write auth/kubernetes/role/frontend-role \
+                            bound_service_account_names="frontend-sa" \
+                            bound_service_account_namespaces="preprod-platform,prod-platform" \
+                            policies="frontend-policy" \
+                            audience="" \
+                            ttl="24h"
+                        """
+                    }
                 }
             }
         }
