@@ -67,46 +67,48 @@ pipeline {
 
         stage('Configure Vault') {
             steps {
-                withCredentials([string(credentialsId: 'vault-token', variable: 'VAULT_TOKEN')]) {
-                    sh '''
-                    echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME}..."
-                    
-                    # On utilise des guillemets simples purs pour le sh -c externe de Docker, 
-                    # ce qui protège l'intégralité de nos commandes Vault des interférences de Jenkins.
-                    docker run --rm -e VAULT_ADDR=${VAULT_ADDR} -e VAULT_TOKEN=$VAULT_TOKEN hashicorp/vault:2.0.2 sh -c '
-                        # Active le moteur KV-v2 si ce n'est pas déjà fait
-                        vault secrets enable -path=secret kv-v2 || true
+                withCredentials([string(credentialsId: 'vault-token', variable: 'INTERNAL_VAULT_TOKEN')]) {
+                    script {
+                        echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME}..."
                         
-                        # 1. Injecte le secret Keycloak au BON chemin (sans double data)
-                        vault kv put secret/frontend keycloak-client-secret="une_cle_secrete_super_secure" || true
-                        
-                        # Réinitialise proprement l'authentification Kubernetes
-                        vault auth disable kubernetes || true
-                        vault auth enable kubernetes
-                        
-                        # 2. Lie Vault au cluster K3s avec le bon ISSUER et le bon Certificat CA
-                        vault write auth/kubernetes/config \
-                            kubernetes_host="https://kubernetes.default.svc:443" \
-                            kubernetes_ca_cert="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt" \
-                            issuer="https://kubernetes.default.svc.cluster.local" \
-                            disable_iss_validation=false
-                        
-                        # Écrit la politique directement
-                        vault policy write frontend-policy - <<EOF
+                        // Jenkins utilise l'image officielle et exécute le bloc directement à l'intérieur
+                        docker.image('hashicorp/vault:2.0.2').inside("-e VAULT_ADDR=${env.VAULT_ADDR} -e VAULT_TOKEN=${INTERNAL_VAULT_TOKEN}") {
+                            
+                            sh '''
+                            # 1. Active le moteur KV-v2 si ce n'est pas déjà fait
+                            vault secrets enable -path=secret kv-v2 || true
+                            
+                            # 2. Injecte le secret Keycloak au BON chemin
+                            vault kv put secret/frontend keycloak-client-secret="une_cle_secrete_super_secure" || true
+                            
+                            # Réinitialise proprement l'authentification Kubernetes
+                            vault auth disable kubernetes || true
+                            vault auth enable kubernetes
+                            
+                            # 3. Lie Vault au cluster K3s avec le bon ISSUER et le bon Certificat CA
+                            vault write auth/kubernetes/config \
+                                kubernetes_host="https://kubernetes.default.svc:443" \
+                                kubernetes_ca_cert="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt" \
+                                issuer="https://kubernetes.default.svc.cluster.local" \
+                                disable_iss_validation=false
+                            
+                            # Écrit la politique directement
+                            vault policy write frontend-policy - <<EOF
 path "secret/data/frontend" {
   capabilities = ["read"]
 }
 EOF
-                        
-                        # 3. Crée le rôle Kubernetes avec une audience vide propre
-                        vault write auth/kubernetes/role/frontend-role \
-                            bound_service_account_names="frontend-sa" \
-                            bound_service_account_namespaces="preprod-platform,prod-platform" \
-                            policies="frontend-policy" \
-                            audience="" \
-                            ttl="24h"
-                    '
-                    '''
+                            
+                            # 4. Crée le rôle Kubernetes avec une audience vide propre
+                            vault write auth/kubernetes/role/frontend-role \
+                                bound_service_account_names="frontend-sa" \
+                                bound_service_account_namespaces="preprod-platform,prod-platform" \
+                                policies="frontend-policy" \
+                                audience="" \
+                                ttl="24h"
+                            '''
+                        }
+                    }
                 }
             }
         }
