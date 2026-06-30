@@ -68,45 +68,60 @@ pipeline {
         stage('Configure Vault') {
             steps {
                 withCredentials([string(credentialsId: 'vault-token', variable: 'INTERNAL_VAULT_TOKEN')]) {
-                    echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME} via Plugin Docker..."
+                    echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME} via API HTTP (Curl)..."
                     
-                    // On ajoute le bloc script pour autoriser la syntaxe docker.image
-                    script {
-                        docker.image('hashicorp/vault:2.0.2').inside("-e VAULT_ADDR=${VAULT_ADDR} -e VAULT_TOKEN=${INTERNAL_VAULT_TOKEN}") {
-                            sh """
-                            # 1. Activation du moteur de secret (au cas où)
-                            vault secrets enable -path=secret kv-v2 || true
-                            
-                            # 2. Injection du secret au bon endroit (sans double data)
-                            vault kv put secret/frontend keycloak-client-secret="une_cle_secrete_super_secure"
-                            
-                            # 3. Réinitialisation propre de la méthode d'authentification Kubernetes
-                            vault auth disable kubernetes || true
-                            vault auth enable kubernetes
-                            
-                            # 4. Liaison avec le cluster K3s local
-                            vault write auth/kubernetes/config \
-                                kubernetes_host="https://kubernetes.default.svc:443" \
-                                disable_iss_validation=true \
-                                issuer="https://kubernetes.default.svc.cluster.local"
-                            
-                            # 5. Création de la politique d'accès pour le frontend
-                            vault policy write frontend-policy - <<EOF
-path "secret/data/frontend" {
-  capabilities = ["read"]
-}
-EOF
+                    sh """
+                    # 1. Activation du moteur de secrets kv-v2 (on ignore si déjà actif)
+                    curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
+                         --request POST \
+                         --data '{"type": "kv", "options": {"version": "2"}}' \
+                         ${VAULT_ADDR}/v1/sys/mounts/secret || true
 
-                            # 6. Configuration du rôle Kubernetes associé au ServiceAccount de ton app
-                            vault write auth/kubernetes/role/frontend-role \
-                                bound_service_account_names="frontend-sa" \
-                                bound_service_account_namespaces="preprod-platform,prod-platform" \
-                                policies="frontend-policy" \
-                                audience="" \
-                                ttl="24h"
-                            """
-                        }
-                    }
+                    # 2. Injection du secret (Corrigé sans le double 'data/data')
+                    curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
+                         --request POST \
+                         --data '{"data": {"keycloak-client-secret": "une_cle_secrete_super_secure"}}' \
+                         ${VAULT_ADDR}/v1/secret/data/frontend
+
+                    # 3. Réinitialisation de l'authentification Kubernetes
+                    curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
+                         --request DELETE \
+                         ${VAULT_ADDR}/v1/sys/auth/kubernetes || true
+
+                    curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
+                         --request POST \
+                         --data '{"type": "kubernetes"}' \
+                         ${VAULT_ADDR}/v1/sys/auth/kubernetes
+
+                    # 4. Configuration de l'auth Kubernetes (sans vérification stricte du CA pour ta preprod)
+                    curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
+                         --request POST \
+                         --data '{
+                           "kubernetes_host": "https://kubernetes.default.svc:443",
+                           "disable_iss_validation": true,
+                           "issuer": "https://kubernetes.default.svc.cluster.local"
+                         }' \
+                         ${VAULT_ADDR}/v1/auth/kubernetes/config
+
+                    # 5. Création de la politique d'accès (Policy)
+                    curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
+                         --request PUT \
+                         --data '{
+                           "policy": "path \\"secret/data/frontend\\" { capabilities = [\\"read\\"] }"
+                         }' \
+                         ${VAULT_ADDR}/v1/sys/policies/acl/frontend-policy
+
+                    # 6. Création du rôle Kubernetes pour l'application
+                    curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
+                         --request POST \
+                         --data '{
+                           "bound_service_account_names": ["frontend-sa"],
+                           "bound_service_account_namespaces": ["preprod-platform", "prod-platform"],
+                           "policies": ["frontend-policy"],
+                           "ttl": "24h"
+                         }' \
+                         ${VAULT_ADDR}/v1/auth/kubernetes/role/frontend-role
+                    """
                 }
             }
         }
