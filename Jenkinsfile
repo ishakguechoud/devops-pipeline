@@ -9,12 +9,11 @@ pipeline {
         NEXUS_URL = '192.168.74.128:8082'
         BUILD_TIMESTAMP = "${currentBuild.startTimeInMillis ? new Date(currentBuild.startTimeInMillis).format('yyyyMMdd-HHmm') : ''}"
         PROJECT_NAME = 'workflow-devops'
-        
+
         ENV_NAME = 'preprod'
         K8S_NAMESPACE = 'preprod-platform'
-        
-        // 🔐 URL d'accès à ton Vault pour le CLI dans le pipeline
-        VAULT_ADDR = 'http://192.168.74.128:30200' 
+
+        VAULT_ADDR = 'http://192.168.74.128:30200'
     }
 
     stages {
@@ -67,44 +66,29 @@ pipeline {
         stage('Configure Vault') {
             steps {
                 withCredentials([string(credentialsId: 'vault-token', variable: 'INTERNAL_VAULT_TOKEN')]) {
-                    echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME} via API HTTP (Curl)..."
-                    
+                    echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME} (idempotent)..."
+
                     sh """
-                    # 1. Activation du moteur de secrets kv-v2 (on ignore si déjà actif)
+                    # 1. Activation du moteur de secrets kv-v2 (ignoré si déjà actif)
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request POST \
                          --data '{"type": "kv", "options": {"version": "2"}}' \
                          ${VAULT_ADDR}/v1/sys/mounts/secret || true
 
-                    # 2. Injection du secret
+                    # 2. Injection / mise à jour du secret applicatif
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request POST \
                          --data '{"data": {"keycloak-client-secret": "une_cle_secrete_super_secure"}}' \
                          ${VAULT_ADDR}/v1/secret/data/frontend
 
-                    # 3. Réinitialisation de l'authentification Kubernetes
-                    curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
-                         --request DELETE \
-                         --data-binary '{}' \
-                         ${VAULT_ADDR}/v1/sys/auth/kubernetes || true
-
+                    # 3. Activation de l'auth kubernetes UNIQUEMENT si elle n'existe pas déjà
+                    #    On ne fait JAMAIS de DELETE ici : ça cassait token_reviewer_jwt à chaque run
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request POST \
                          --data '{"type": "kubernetes"}' \
-                         ${VAULT_ADDR}/v1/sys/auth/kubernetes
+                         ${VAULT_ADDR}/v1/sys/auth/kubernetes || true
 
-                    # 4. Liaison avec le cluster K3s local (Bypass complet des validations temporelles du JWT)
-                    curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
-                         --request POST \
-                         --data '{
-                           "kubernetes_host": "https://kubernetes.default.svc:443",
-                           "disable_iss_validation": true,
-                           "disable_local_ca_jwt": true,
-                           "issuer_time_skew_tolerance": "24h"
-                         }' \
-                         ${VAULT_ADDR}/v1/auth/kubernetes/config
-
-                    # 5. Création de la politique d'accès (Policy)
+                    # 4. Création / mise à jour de la policy
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request PUT \
                          --data '{
@@ -112,19 +96,30 @@ pipeline {
                          }' \
                          ${VAULT_ADDR}/v1/sys/policies/acl/frontend-policy
 
-                    # 6. Création du rôle Kubernetes pour l'application
+                    # 5. Création / mise à jour du rôle (SANS le champ audience)
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request POST \
                          --data '{
                            "bound_service_account_names": ["frontend-sa"],
                            "bound_service_account_namespaces": ["preprod-platform", "prod-platform"],
                            "policies": ["frontend-policy"],
-                           "audience": "https://kubernetes.default.svc.cluster.local",
                            "ttl": "24h"
                          }' \
                          ${VAULT_ADDR}/v1/auth/kubernetes/role/frontend-role
                     """
                 }
+            }
+        }
+
+        stage('Verify Vault Kubernetes Config') {
+            steps {
+                echo "🔍 Vérification que token_reviewer_jwt est bien configuré (sinon Vault Agent renvoie 403)..."
+                sh """
+                kubectl exec -n vault vault-0 --kubeconfig=/root/.kube/config -- sh -c \
+                  'vault read -format=json auth/kubernetes/config' | grep -q '"token_reviewer_jwt_set":true' \
+                  && echo "✅ token_reviewer_jwt correctement configuré" \
+                  || echo "⚠️  ATTENTION : token_reviewer_jwt absent, l'auth Vault Agent va échouer. Configuration manuelle requise."
+                """
             }
         }
 
