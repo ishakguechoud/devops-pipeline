@@ -71,10 +71,7 @@ pipeline {
                     sh """
                     echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME}..."
                     
-                    # 1. Utilisation du binaire vault installé sur l'agent ou via une image docker temporaire
-                    # On utilise l'image officielle Vault pour exécuter nos commandes de configuration
                     docker run --rm -e VAULT_ADDR=${VAULT_ADDR} -e VAULT_TOKEN=\$VAULT_TOKEN hashicorp/vault:2.0.2 sh -c "
-                        
                         # Active le moteur KV-v2 si ce n'est pas déjà fait
                         vault secrets enable -path=secret kv-v2 || true
                         
@@ -87,15 +84,16 @@ pipeline {
                         # Lie Vault au cluster K3s
                         vault write auth/kubernetes/config kubernetes_host='https://kubernetes.default.svc:443' || true
                         
-                        # Crée la politique de lecture
-                        echo 'path \"secret/data/frontend\" { capabilities = [\"read\"] }' > /tmp/policy.hcl
+                        # --- ICI CORRECTION DE LA POLITIQUE ---
+                        # On écrit la politique directement dans un fichier propre
+                        printf 'path \\"secret/data/frontend\\" { capabilities = [\\"read\\"] }\\n' > /tmp/policy.hcl
                         vault policy write frontend-policy /tmp/policy.hcl
                         
                         # Crée le rôle pour preprod et prod
-                        vault write auth/kubernetes/role/frontend-role \
-                            bound_service_account_names=frontend-sa \
-                            bound_service_account_namespaces=preprod-platform,prod-platform \
-                            policies=frontend-policy \
+                        vault write auth/kubernetes/role/frontend-role \\
+                            bound_service_account_names=frontend-sa \\
+                            bound_service_account_namespaces=preprod-platform,prod-platform \\
+                            policies=frontend-policy \\
                             ttl=24h || true
                     "
                     """
