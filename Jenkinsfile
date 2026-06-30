@@ -8,13 +8,14 @@ pipeline {
     environment {
         NEXUS_URL = '192.168.74.128:8082'
         BUILD_TIMESTAMP = "${currentBuild.startTimeInMillis ? new Date(currentBuild.startTimeInMillis).format('yyyyMMdd-HHmm') : ''}"
-        
-        // 📦 Le nom de ton projet qui va regrouper tes microservices
         PROJECT_NAME = 'workflow-devops'
         
         ENV_NAME = 'preprod'
         K8S_NAMESPACE = 'preprod-platform'
         SHORT_TAG = ''
+        
+        // 🔐 URL d'accès à ton Vault pour le CLI dans le pipeline
+        VAULT_ADDR = 'http://192.168.74.128:30200' 
     }
 
     stages {
@@ -59,6 +60,44 @@ pipeline {
                     docker push ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-users:${SHORT_TAG}
                     docker push ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-products:${SHORT_TAG}
                     docker push ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-frontend:${SHORT_TAG}
+                    """
+                }
+            }
+        }
+
+        stage('Configure Vault') {
+            steps {
+                withCredentials([string(credentialsId: 'vault-token', variable: 'VAULT_TOKEN')]) {
+                    sh """
+                    echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME}..."
+                    
+                    # 1. Utilisation du binaire vault installé sur l'agent ou via une image docker temporaire
+                    # On utilise l'image officielle Vault pour exécuter nos commandes de configuration
+                    docker run --rm -e VAULT_ADDR=${VAULT_ADDR} -e VAULT_TOKEN=\$VAULT_TOKEN hashicorp/vault:2.0.2 sh -c "
+                        
+                        # Active le moteur KV-v2 si ce n'est pas déjà fait
+                        vault secrets enable -path=secret kv-v2 || true
+                        
+                        # Injecte le secret Keycloak pour l'application
+                        vault kv put secret/data/frontend keycloak-client-secret='une_cle_secrete_super_secure' || true
+                        
+                        # Active l'authentification Kubernetes
+                        vault auth enable kubernetes || true
+                        
+                        # Lie Vault au cluster K3s
+                        vault write auth/kubernetes/config kubernetes_host='https://kubernetes.default.svc:443' || true
+                        
+                        # Crée la politique de lecture
+                        echo 'path \"secret/data/frontend\" { capabilities = [\"read\"] }' > /tmp/policy.hcl
+                        vault policy write frontend-policy /tmp/policy.hcl
+                        
+                        # Crée le rôle pour preprod et prod
+                        vault write auth/kubernetes/role/frontend-role \
+                            bound_service_account_names=frontend-sa \
+                            bound_service_account_namespaces=preprod-platform,prod-platform \
+                            policies=frontend-policy \
+                            ttl=24h || true
+                    "
                     """
                 }
             }
