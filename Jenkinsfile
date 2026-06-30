@@ -81,10 +81,11 @@ pipeline {
                         # Active l'authentification Kubernetes
                         vault auth enable kubernetes || true
                         
-                        # Lie Vault au cluster K3s
-                        vault write auth/kubernetes/config kubernetes_host='https://kubernetes.default.svc:443' || true
+                        # Lie Vault au cluster K3s (On ajoute disable_iss_validation pour éviter les rejets de tokens)
+                        vault write auth/kubernetes/config \\
+                            kubernetes_host='https://kubernetes.default.svc:443' \\
+                            disable_iss_validation=true || true
                         
-                        # --- ICI CORRECTION DE LA POLITIQUE ---
                         # On écrit la politique directement dans un fichier propre
                         printf 'path \\"secret/data/frontend\\" { capabilities = [\\"read\\"] }\\n' > /tmp/policy.hcl
                         vault policy write frontend-policy /tmp/policy.hcl
