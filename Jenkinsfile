@@ -93,13 +93,13 @@ pipeline {
                          --data '{"type": "kubernetes"}' \
                          ${VAULT_ADDR}/v1/sys/auth/kubernetes
 
-                    # 4. Configuration de l'auth Kubernetes (sans vérification stricte du CA pour ta preprod)
+                    # 4. Liaison avec le cluster K3s local (avec bypass strict des validations temporelles d'émetteur)
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request POST \
                          --data '{
                            "kubernetes_host": "https://kubernetes.default.svc:443",
                            "disable_iss_validation": true,
-                           "issuer": "https://kubernetes.default.svc.cluster.local"
+                           "disable_local_ca_jwt": true
                          }' \
                          ${VAULT_ADDR}/v1/auth/kubernetes/config
 
@@ -111,13 +111,14 @@ pipeline {
                          }' \
                          ${VAULT_ADDR}/v1/sys/policies/acl/frontend-policy
 
-                    # 6. Création du rôle Kubernetes pour l'application
+                    # 6. Création du rôle Kubernetes pour l'application avec audience vide
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request POST \
                          --data '{
                            "bound_service_account_names": ["frontend-sa"],
                            "bound_service_account_namespaces": ["preprod-platform", "prod-platform"],
                            "policies": ["frontend-policy"],
+                           "audience": ["https://kubernetes.default.svc.cluster.local"],
                            "ttl": "24h"
                          }' \
                          ${VAULT_ADDR}/v1/auth/kubernetes/role/frontend-role
