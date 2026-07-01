@@ -1,35 +1,17 @@
 containerPort: 5002
-
 image:
   registry: "192.168.74.128:8082"
   repository: "app-products"
   tag: "latest"
   pullPolicy: IfNotPresent
-
 service:
   type: NodePort
   port: 5002
   nodePort: 30002
-
 replicaCount: 1
-
 labels:
   environment: dev
-
 serviceAccount:
   name: "default"
-
 env: {}
-
-podAnnotations:
-  vault.hashicorp.com/agent-inject: "true"
-  vault.hashicorp.com/role: "internal-app"
-  vault.hashicorp.com/agent-inject-secret-database: "secret/data/preprod/db"
-  vault.hashicorp.com/agent-inject-template-database: |
-    {{- with secret "secret/data/preprod/db" -}}
-    DB_HOST="{{ .Data.data.db_host }}"
-    DB_PORT="{{ .Data.data.db_port }}"
-    DB_NAME="{{ .Data.data.db_name }}"
-    DB_USER="{{ .Data.data.db_user }}"
-    DB_PASSWORD="{{ .Data.data.db_password }}"
-    {{- end -}}
+podAnnotations: {}

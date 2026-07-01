@@ -1,4 +1,4 @@
-replicaCount: 1
+replicaCount: 2
 
 labels:
   environment: prod
@@ -11,9 +11,6 @@ service:
   port: 5001
   nodePort: 30001
 
-# En prod, aucun credential en clair
-# Les secrets DB sont injectés par Vault Agent dans /vault/secrets/db
-# L'app lit ce fichier au démarrage (voir app.py)
 env: {}
 
 serviceAccount:
