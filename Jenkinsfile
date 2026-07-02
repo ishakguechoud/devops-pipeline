@@ -66,7 +66,7 @@ pipeline {
         stage('Configure Vault') {
             steps {
                 withCredentials([string(credentialsId: 'vault-token', variable: 'INTERNAL_VAULT_TOKEN')]) {
-                    echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME} (idempotent)..."
+                    echo "🔑 Configuration de HashiCorp Vault pour ${ENV_NAME} (idempotent, sans toucher aux secrets applicatifs)..."
 
                     sh """
                     # 1. Activation du moteur de secrets kv-v2 (ignoré si déjà actif)
@@ -75,20 +75,13 @@ pipeline {
                          --data '{"type": "kv", "options": {"version": "2"}}' \
                          ${VAULT_ADDR}/v1/sys/mounts/secret || true
 
-                    # 2. Injection / mise à jour du secret applicatif
-                    curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
-                         --request POST \
-                         --data '{"data": {"keycloak-client-secret": "une_cle_secrete_super_secure"}}' \
-                         ${VAULT_ADDR}/v1/secret/data/frontend
-
-                    # 3. Activation de l'auth kubernetes UNIQUEMENT si elle n'existe pas déjà
-                    #    On ne fait JAMAIS de DELETE ici : ça cassait token_reviewer_jwt à chaque run
+                    # 2. Activation de l'auth kubernetes (ignoré si déjà actif)
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request POST \
                          --data '{"type": "kubernetes"}' \
                          ${VAULT_ADDR}/v1/sys/auth/kubernetes || true
 
-                    # 4. Création / mise à jour de la policy
+                    # 3. Création / mise à jour de la policy
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request PUT \
                          --data '{
@@ -96,7 +89,7 @@ pipeline {
                          }' \
                          ${VAULT_ADDR}/v1/sys/policies/acl/frontend-policy
 
-                    # 5. Création / mise à jour du rôle (SANS le champ audience)
+                    # 4. Création / mise à jour du rôle (SANS le champ audience)
                     curl --header "X-Vault-Token: \$INTERNAL_VAULT_TOKEN" \
                          --request POST \
                          --data '{
