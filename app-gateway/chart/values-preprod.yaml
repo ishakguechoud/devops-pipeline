@@ -1,0 +1,20 @@
+replicaCount: 1
+
+labels:
+  environment: preprod
+
+image:
+  repository: "workflow-devops/preprod/app-gateway"
+
+service:
+  type: NodePort
+  port: 5003
+  nodePort: 30013
+
+env:
+  PRODUCTS_SERVICE_URL: "http://app-products-preprod-service:5002"
+  USERS_SERVICE_URL: "http://app-users-preprod-service:5001"
+  KEYCLOAK_BASE_URL: "http://172.28.77.160:8086"
+  KEYCLOAK_REALM: "zak-local"
+
+podAnnotations: {}

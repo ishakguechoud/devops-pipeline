@@ -1,0 +1,6 @@
+apiVersion: v2
+name: app-gateway
+description: Chart Helm pour l'API Gateway (Flask)
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

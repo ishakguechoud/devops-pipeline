@@ -40,6 +40,7 @@ pipeline {
                 sh "docker build -t ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-users:${SHORT_TAG} ./app-users"
                 sh "docker build -t ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-products:${SHORT_TAG} ./app-products"
                 sh "docker build -t ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-frontend:${SHORT_TAG} ./app-frontend"
+                sh "docker build -t ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-gateway:${SHORT_TAG} ./app-gateway"
             }
         }
 
@@ -58,6 +59,7 @@ pipeline {
                     docker push ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-users:${SHORT_TAG}
                     docker push ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-products:${SHORT_TAG}
                     docker push ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-frontend:${SHORT_TAG}
+                    docker push ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-gateway:${SHORT_TAG}
                     """
                 }
             }
@@ -139,6 +141,13 @@ pipeline {
                       --kubeconfig=/root/.kube/config \
                       -f ./app-frontend/chart/values-${ENV_NAME}.yaml \
                       --set image.tag=${SHORT_TAG}
+                    
+                    helm upgrade --install app-gateway ./app-gateway/chart \
+                      --namespace ${K8S_NAMESPACE} --create-namespace \
+                      --kubeconfig=/root/.kube/config \
+                      -f ./app-gateway/chart/values-${ENV_NAME}.yaml \
+                      --set image.tag=${SHORT_TAG}
+
                     """
                 }
             }
