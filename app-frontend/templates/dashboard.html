@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — DevOps Platform{% endblock %}
+
+{% block body %}
+<nav class="topbar">
+  <div class="topbar-brand">
+    ⚙️ DevOps Platform <span>K8S</span>
+  </div>
+  <div class="topbar-user">
+    <div class="avatar">{{ username[0]|upper }}</div>
+    <span>{{ username }}</span>
+    <a href="{{ url_for('auth.logout') }}" class="btn-logout">Déconnexion</a>
+  </div>
+</nav>
+
+<div class="main-content">
+
+  <!-- Header -->
+  <div class="page-header">
+    <h1 class="page-title">
+      Tableau de bord
+      <span class="badge-connected"><span class="dot"></span> Connecté via Keycloak</span>
+    </h1>
+    <p class="page-subtitle">
+      Bienvenue, <strong>{{ username }}</strong> — plateforme microservices déployée sur Kubernetes
+    </p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-label">Produits</div>
+      <div class="stat-value">{{ products|length }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Utilisateurs</div>
+      <div class="stat-value">{{ users|length }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Namespace</div>
+      <div class="stat-value stat-value-sm">preprod-platform</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Auth</div>
+      <div class="stat-value stat-value-sm">Keycloak</div>
+    </div>
+  </div>
+
+  <!-- Produits -->
+  <div class="section-title">
+    🛡️ Catalogue produits <span class="count">{{ products|length }}</span>
+  </div>
+  <div class="products-grid">
+    {% if products %}
+      {% for p in products %}
+      <div class="product-card">
+        <div class="product-icon {{ p.icon_class }}">{{ p.icon }}</div>
+        <div class="product-name">{{ p.name }}</div>
+        <div class="product-id">Réf. #{{ p.id }}</div>
+        <div class="product-price">{{ "{:,}".format(p.price) }} <span>DZD / an</span></div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">Aucun produit disponible</div>
+    {% endif %}
+  </div>
+
+  <!-- Utilisateurs -->
+  <div class="section-title">
+    👤 Utilisateurs PostgreSQL <span class="count">{{ users|length }}</span>
+  </div>
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Utilisateur</th>
+          <th>Email</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if users %}
+          {% for u in users %}
+          <tr>
+            <td>{{ u.id }}</td>
+            <td>
+              <span class="user-initial">{{ u.username[0]|upper }}</span>
+              {{ u.username }}
+            </td>
+            <td>{{ u.email }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="3">
+              <div class="empty-state">Aucun utilisateur trouvé</div>
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}
