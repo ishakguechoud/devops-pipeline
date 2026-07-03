@@ -10,6 +10,9 @@ KEYCLOAK_BASE_URL = os.getenv("KEYCLOAK_BASE_URL", "http://172.28.77.160:8086")
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "zak-local")
 KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "app-frontend")
 
+# API Gateway — un seul point d'entrée pour tous les microservices
+GATEWAY_URL = os.getenv("GATEWAY_URL", "http://app-gateway-preprod-service:5003")
+
 def get_keycloak_secret():
     try:
         with open("/vault/secrets/keycloak", "r") as f:
@@ -26,9 +29,6 @@ def get_keycloak_secret():
 
 KEYCLOAK_CLIENT_SECRET = get_keycloak_secret()
 KEYCLOAK_TOKEN_URL = f"{KEYCLOAK_BASE_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
-
-PRODUCTS_SERVICE_URL = os.getenv("PRODUCTS_SERVICE_URL", "http://192.168.74.128:30002")
-USERS_SERVICE_URL = os.getenv("USERS_SERVICE_URL", "http://192.168.74.128:30001")
 
 CSS = """
 <style>
@@ -405,6 +405,14 @@ def product_icon_class(name):
     return "vie", ICONS["vie"]
 
 
+def gateway_headers():
+    """Construit les headers avec le token JWT pour appeler le Gateway."""
+    token = session.get("access_token")
+    if token:
+        return {"Authorization": f"Bearer {token}"}
+    return {}
+
+
 @app.route("/")
 def home():
     if "username" not in session:
@@ -412,13 +420,22 @@ def home():
 
     username = session["username"]
 
+    # Appels via l'API Gateway au lieu des microservices directement
     try:
-        products_data = requests.get(f"{PRODUCTS_SERVICE_URL}/products", timeout=5).json().get("products", [])
+        products_data = requests.get(
+            f"{GATEWAY_URL}/api/products",
+            headers=gateway_headers(),
+            timeout=5
+        ).json().get("products", [])
     except Exception:
         products_data = []
 
     try:
-        users_data = requests.get(f"{USERS_SERVICE_URL}/users", timeout=5).json().get("users", [])
+        users_data = requests.get(
+            f"{GATEWAY_URL}/api/users",
+            headers=gateway_headers(),
+            timeout=5
+        ).json().get("users", [])
     except Exception:
         users_data = []
 
@@ -493,7 +510,7 @@ def home():
     </div>
     <div class="stat-card">
       <div class="stat-label">Namespace</div>
-      <div class="stat-value" style="font-size:15px; padding-top:4px;">devops-pipeline</div>
+      <div class="stat-value" style="font-size:15px; padding-top:4px;">preprod-platform</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Auth</div>
@@ -608,6 +625,6 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
-if __name__ == '__main__':
-    # On garde le debug pour tes tests, mais on désactive le reloader automatique qui binde sur 127.0.0.1
-    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
