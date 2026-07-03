@@ -15,6 +15,6 @@ env:
   DB_HOST: "192.168.74.129"
   DB_NAME: "workflow"
   DB_USER: "workflow_app"
-  DB_PASSWORD: "changeme-preprod"
+  DB_PASSWORD: "Guizak-56"
 
 podAnnotations: {}
