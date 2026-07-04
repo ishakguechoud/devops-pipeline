@@ -10,19 +10,18 @@ pipeline {
         BUILD_TIMESTAMP = "${currentBuild.startTimeInMillis ? new Date(currentBuild.startTimeInMillis).format('yyyyMMdd-HHmm') : ''}"
         PROJECT_NAME = 'workflow-devops'
 
-        ENV_NAME = 'preprod'
-        K8S_NAMESPACE = 'preprod-platform'
-
         VAULT_ADDR = 'http://192.168.74.128:30200'
     }
 
-    stages {
-        stage('Initialize Env & Tags') {
+    stage('Initialize Env & Tags') {
             steps {
                 script {
                     if (env.GIT_BRANCH == 'origin/main' || env.GIT_BRANCH == 'main') {
                         env.ENV_NAME = "prod"
                         env.K8S_NAMESPACE = "prod-platform"
+                    } else {
+                        env.ENV_NAME = "preprod"
+                        env.K8S_NAMESPACE = "preprod-platform"
                     }
 
                     env.SHORT_TAG = "Application${BUILD_NUMBER}-${BUILD_TIMESTAMP}"
@@ -30,6 +29,7 @@ pipeline {
                     echo "🌿 Branche détectée : ${env.GIT_BRANCH}"
                     echo "📦 Projet : ${PROJECT_NAME}"
                     echo "🚀 Environnement : ${env.ENV_NAME.toUpperCase()}"
+                    echo "📦 Namespace : ${env.K8S_NAMESPACE}"
                     echo "🏷️ Tag de l'image : ${env.SHORT_TAG}"
                 }
             }
