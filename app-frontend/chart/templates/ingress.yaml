@@ -17,6 +17,8 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: app-frontend-preprod-service
-            port:
-              number: 5000
+            # 🌟 On utilise le nom du release Helm pour basculer automatiquement
+            # entre app-frontend-preprod-service et app-frontend-prod-service
+            name: {{ if contains "preprod" .Release.Namespace }}app-frontend-preprod-service{{ else }}app-frontend-prod-service{{ end }}   
+            port: 
+              number: 5000  

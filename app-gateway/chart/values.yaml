@@ -1,17 +1,24 @@
-containerPort: 5002
+containerPort: 5003
+
 image:
   registry: "192.168.74.128:8082"
-  repository: "app-products"
+  repository: "app-gateway"
   tag: "latest"
   pullPolicy: IfNotPresent
+
 service:
   type: NodePort
-  port: 5002
-  nodePort: 30002
+  port: 5003
+  nodePort: 30003
+
 replicaCount: 1
+
 labels:
   environment: dev
+
 serviceAccount:
   name: "default"
+
 env: {}
+
 podAnnotations: {}
