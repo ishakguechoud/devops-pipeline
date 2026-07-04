@@ -9,11 +9,12 @@ pipeline {
         NEXUS_URL = '192.168.74.128:8082'
         BUILD_TIMESTAMP = "${currentBuild.startTimeInMillis ? new Date(currentBuild.startTimeInMillis).format('yyyyMMdd-HHmm') : ''}"
         PROJECT_NAME = 'workflow-devops'
-
         VAULT_ADDR = 'http://192.168.74.128:30200'
     }
 
-    stage('Initialize Env & Tags') {
+    stages { // <--- L'oubli était ici !
+
+        stage('Initialize Env & Tags') {
             steps {
                 script {
                     if (env.GIT_BRANCH == 'origin/main' || env.GIT_BRANCH == 'main') {
@@ -147,12 +148,11 @@ pipeline {
                       --kubeconfig=/root/.kube/config \
                       -f ./app-gateway/chart/values-${ENV_NAME}.yaml \
                       --set image.tag=${SHORT_TAG}
-
                     """
                 }
             }
         }
-    }
+    } // Fin de STAGES
 
     post {
         success {
