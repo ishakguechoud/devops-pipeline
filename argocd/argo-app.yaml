@@ -1,0 +1,87 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-frontend-preprod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/ishakguechoud/devops-pipeline.git'
+    targetRevision: HEAD
+    path: app-frontend/chart
+    helm:
+      valueFiles:
+      - values-preprod.yaml
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: preprod-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-gateway-preprod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/ishakguechoud/devops-pipeline.git'
+    targetRevision: HEAD
+    path: app-gateway/chart
+    helm:
+      valueFiles:
+      - values-preprod.yaml
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: preprod-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-products-preprod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/ishakguechoud/devops-pipeline.git'
+    targetRevision: HEAD
+    path: app-products/chart
+    helm:
+      valueFiles:
+      - values-preprod.yaml
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: preprod-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-users-preprod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/ishakguechoud/devops-pipeline.git'
+    targetRevision: HEAD
+    path: app-users/chart
+    helm:
+      valueFiles:
+      - values-preprod.yaml
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: preprod-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
