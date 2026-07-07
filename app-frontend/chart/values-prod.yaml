@@ -6,7 +6,7 @@ labels:
 # 📁 On ajoute la bifurcation vers le dossier de prod sur Nexus
 image:
   repository: "workflow-devops/prod/app-frontend"
-  tag: "Application17-20260707-1420"
+  tag: "Application18-20260707-1422"
 service:
   type: NodePort
   port: 5000
