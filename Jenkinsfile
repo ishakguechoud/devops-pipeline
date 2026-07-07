@@ -119,36 +119,41 @@ pipeline {
             }
         }
 
-        stage('Deploy via Helm') {
+        stage('Update Git for ArgoCD') {
             steps {
                 script {
-                    echo "📦 Déploiement Helm dans le Namespace : ${K8S_NAMESPACE}"
+                    echo "📝 Injection du tag [${SHORT_TAG}] dans les fichiers de configuration de ${ENV_NAME}..."
 
+                    // Utilisation de sed pour chercher la clé "tag:" et y injecter la version générée
                     sh """
-                    helm upgrade --install app-products ./app-products/chart \
-                      --namespace ${K8S_NAMESPACE} --create-namespace \
-                      --kubeconfig=/root/.kube/config \
-                      -f ./app-products/chart/values-${ENV_NAME}.yaml \
-                      --set image.tag=${SHORT_TAG}
-
-                    helm upgrade --install app-users ./app-users/chart \
-                      --namespace ${K8S_NAMESPACE} --create-namespace \
-                      --kubeconfig=/root/.kube/config \
-                      -f ./app-users/chart/values-${ENV_NAME}.yaml \
-                      --set image.tag=${SHORT_TAG}
-
-                    helm upgrade --install app-frontend ./app-frontend/chart \
-                      --namespace ${K8S_NAMESPACE} --create-namespace \
-                      --kubeconfig=/root/.kube/config \
-                      -f ./app-frontend/chart/values-${ENV_NAME}.yaml \
-                      --set image.tag=${SHORT_TAG}
-                    
-                    helm upgrade --install app-gateway ./app-gateway/chart \
-                      --namespace ${K8S_NAMESPACE} --create-namespace \
-                      --kubeconfig=/root/.kube/config \
-                      -f ./app-gateway/chart/values-${ENV_NAME}.yaml \
-                      --set image.tag=${SHORT_TAG}
+                    sed -i 's/tag:.*/tag: "${SHORT_TAG}"/' ./app-products/chart/values-${ENV_NAME}.yaml
+                    sed -i 's/tag:.*/tag: "${SHORT_TAG}"/' ./app-users/chart/values-${ENV_NAME}.yaml
+                    sed -i 's/tag:.*/tag: "${SHORT_TAG}"/' ./app-frontend/chart/values-${ENV_NAME}.yaml
+                    sed -i 's/tag:.*/tag: "${SHORT_TAG}"/' ./app-gateway/chart/values-${ENV_NAME}.yaml
                     """
+
+                    echo "🚀 Envoi des modifications sur GitHub pour déclencher ArgoCD..."
+                    // Remplace 'github-credentials' par l'ID exact de tes identifiants GitHub stockés dans Jenkins
+                    withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+                        
+                        // Extraction propre du nom de la branche (pour enlever le préfixe origin/)
+                        def branchName = env.GIT_BRANCH.replace('origin/', '')
+
+                        sh """
+                        git config user.email "jenkins-bot@zak-local.com"
+                        git config user.name "Jenkins GitOps Bot"
+                        
+                        git add ./app-products/chart/values-${ENV_NAME}.yaml \
+                                ./app-users/chart/values-${ENV_NAME}.yaml \
+                                ./app-frontend/chart/values-${ENV_NAME}.yaml \
+                                ./app-gateway/chart/values-${ENV_NAME}.yaml
+                        
+                        # Le [skip ci] évite que Jenkins ne boucle à l'infini en détectant son propre commit
+                        git commit -m "chore(gitops): update ${ENV_NAME} image tags to ${SHORT_TAG} [skip ci]" || echo "Aucune modification détectée"
+                        
+                        git push https://${GIT_USER}:${GIT_TOKEN}@github.com/ishakguechoud/devops-pipeline.git HEAD:${branchName}
+                        """
+                    }
                 }
             }
         }
