@@ -1,6 +1,6 @@
 # 🏷️ Ajout des labels requis par tes fonctions _helpers.tpl
 labels:
-  environment: "preprod"
+  environment: "dev"
 
 containerPort: 5000
 
@@ -13,12 +13,13 @@ image:
 service:
   type: NodePort
   port: 5000
-  nodePort: 30005
+  nodePort: null
 
 env:
-  USERS_SERVICE_URL: "http://192.168.74.128:30011"
-  PRODUCTS_SERVICE_URL: "http://192.168.74.128:30012"
-  KEYCLOAK_BASE_URL: "http://172.28.77.160:8086"
+# 💡 En local (dev), on peut cibler le DNS interne du namespace par défaut ou l'IP de dev
+  USERS_SERVICE_URL: "http://app-users:5001"
+  PRODUCTS_SERVICE_URL: "http://app-products:5002"
+  KEYCLOAK_BASE_URL: "http://172.28.77.160:8086" # IP de ton WSL (Docker)
   KEYCLOAK_REALM: "zak-local"
   KEYCLOAK_CLIENT_ID: "app-frontend"
   FLASK_SECRET_KEY: "une_cle_secrete_super_secure"
