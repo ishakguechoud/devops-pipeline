@@ -5,7 +5,7 @@ labels:
 
 image:
   repository: "workflow-devops/prod/app-products"
-  tag: "Application38-20260708-1302"
+  tag: "Application39-20260708-1304"
 service:
   type: NodePort
   port: 5002
