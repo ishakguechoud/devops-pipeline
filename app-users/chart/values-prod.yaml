@@ -5,7 +5,11 @@ labels:
 
 image:
   repository: "workflow-devops/prod/app-users"
+<<<<<<< Updated upstream
   tag: ""
+=======
+  tag: "Application30-20260707-1446"
+>>>>>>> Stashed changes
 service:
   type: NodePort
   port: 5001
@@ -23,11 +27,11 @@ podAnnotations:
   vault.hashicorp.com/role: "users-role"
   
   # 2. Le chemin TECHNIQUE avec /data/ (Obligatoire !)
-  vault.hashicorp.com/agent-inject-secret-db: "secret/data/preprod/db"
+  vault.hashicorp.com/agent-inject-secret-db: "secret/data/prod/db"
   
   # 3. Le template de configuration (on utilise bien les underscores _ de ton Vault)
   vault.hashicorp.com/agent-inject-template-db: |
-    {{ with secret "secret/data/preprod/db" -}}
+    {{ with secret "secret/data/prod/db" -}}
     export DB_HOST={{ index .Data.data "db_host" }}
     export DB_NAME={{ index .Data.data "db_name" }}
     export DB_USER="workflow_app"
