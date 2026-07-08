@@ -5,7 +5,7 @@ labels:
 
 image:
   repository: "workflow-devops/preprod/app-products"
-  tag: "Application130-20260708-1059"
+  tag: "Application131-20260708-1101"
 
 service:
   type: NodePort
