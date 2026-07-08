@@ -13,17 +13,24 @@ service:
 
 env: {}
 
+
 serviceAccount:
   name: "users-sa"
 
 podAnnotations:
+  # 1. On active l'injecteur
   vault.hashicorp.com/agent-inject: "true"
   vault.hashicorp.com/role: "users-role"
-  vault.hashicorp.com/agent-inject-secret-db: "secret/data/users"
+  
+  # 2. Le chemin TECHNIQUE avec /data/ (Obligatoire !)
+  vault.hashicorp.com/agent-inject-secret-db: "secret/data/preprod/db"
+  
+  # 3. Le template de configuration (on utilise bien les underscores _ de ton Vault)
   vault.hashicorp.com/agent-inject-template-db: |
-    {{ with secret "secret/data/users" -}}
-    DB_HOST={{ index .Data.data "db-host" }}
-    DB_NAME={{ index .Data.data "db-name" }}
-    DB_USER={{ index .Data.data "db-user" }}
-    DB_PASSWORD={{ index .Data.data "db-password" }}
+    {{ with secret "secret/data/preprod/db" -}}
+    export DB_HOST={{ index .Data.data "db_host" }}
+    export DB_NAME={{ index .Data.data "db_name" }}
+    export DB_USER="workflow_app"
+    export DB_PASSWORD={{ index .Data.data "db_password" }}
+    export DB_PORT={{ index .Data.data "db_port" }}
     {{- end }}
