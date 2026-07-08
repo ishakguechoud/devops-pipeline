@@ -7,9 +7,9 @@ labels:
 image:
   repository: "workflow-devops/preprod/app-frontend"
 <<<<<<< HEAD
-  tag: "Application144-20260708-1143"
+  tag: "Application145-20260708-1145"
 =======
-  tag: "Application144-20260708-1143"
+  tag: "Application145-20260708-1145"
 >>>>>>> 7edfd57 (chore(chart): secure credentials with vault and refactor service discovery)
 service:
   type: NodePort
