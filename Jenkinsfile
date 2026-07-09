@@ -149,8 +149,7 @@ pipeline {
                                 ./app-gateway/chart/values-${ENV_NAME}.yaml
                         
                         # Le [skip ci] évite que Jenkins ne boucle à l'infini en détectant son propre commit
-                        git commit -m "chore(gitops): update ${ENV_NAME} image tags to ${SHORT_TAG} [skip ci]" || echo "Aucune modification détectée"
-                        
+                        git commit -m "[skip ci] chore(gitops): update ${ENV_NAME} image tags to ${SHORT_TAG}"                        
                         git push https://${GIT_USER}:${GIT_TOKEN}@github.com/ishakguechoud/devops-pipeline.git HEAD:${branchName}
                         """
                     }

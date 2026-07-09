@@ -12,7 +12,8 @@ service:
   nodePort: 30013
 
 env:
-  GATEWAY_URL: "http://app-gateway-preprod-service:5003"
+  PRODUCTS_SERVICE_URL: "http://app-products-preprod-service:5002"
+  USERS_SERVICE_URL: "http://app-users-preprod-service:5001"
   KEYCLOAK_BASE_URL: "http://172.28.77.160:8086"
   KEYCLOAK_REALM: "zak-local"
 
