@@ -35,7 +35,20 @@ pipeline {
                 }
             }
         }
-
+        stage('Check Skip CI') {
+            steps {
+                script {
+                    def lastCommit = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                    if (lastCommit.contains('[skip ci]')) {
+                        echo "⏭️ Commit GitOps bot détecté — arrêt du pipeline"
+                        currentBuild.result = 'NOT_BUILT'
+                        error('Skip CI - commit from GitOps bot')
+                    }
+                    echo "✅ Commit utilisateur détecté — pipeline continue"
+                }
+            }
+        }
+        
         stage('Build Images') {
             steps {
                 sh "docker build -t ${NEXUS_URL}/${PROJECT_NAME}/${ENV_NAME}/app-users:${SHORT_TAG} ./app-users"
