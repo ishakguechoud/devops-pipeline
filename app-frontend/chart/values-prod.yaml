@@ -15,9 +15,9 @@ service:
 env:
   KEYCLOAK_BASE_URL: "http://172.28.77.160:8086"
   KEYCLOAK_REALM: "zak-local"
-  # 🟢 On force le frontend de prod à appeler les services de prod uniquement !
-  USERS_SERVICE_URL: "http://app-users.prod-platform.svc.cluster.local:5001"
-  PRODUCTS_SERVICE_URL: "http://app-products.prod-platform.svc.cluster.local:5002"
+  KEYCLOAK_CLIENT_ID: "app-frontend"
+  # 🎯 Le fix est ICI : On cible le DNS K8s interne de la gateway de prod
+  GATEWAY_URL: "http://app-gateway-prod-service.prod-platform.svc.cluster.local:5003"
 
 serviceAccount:
   name: "frontend-sa"
